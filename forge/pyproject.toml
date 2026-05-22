@@ -30,7 +30,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["forge"]
+packages = ["."]
 
 [tool.ruff]
 line-length = 100
