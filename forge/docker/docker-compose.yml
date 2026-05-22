@@ -1,0 +1,45 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - forge_net
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - FORGE_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    volumes:
+      - ..:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - forge_net
+
+  node-1:
+    image: alpine:latest
+    command: ["sleep", "infinity"]
+    networks:
+      - forge_net
+
+  node-2:
+    image: alpine:latest
+    command: ["sleep", "infinity"]
+    networks:
+      - forge_net
+
+  node-3:
+    image: alpine:latest
+    command: ["sleep", "infinity"]
+    networks:
+      - forge_net
+
+networks:
+  forge_net:
+    driver: bridge

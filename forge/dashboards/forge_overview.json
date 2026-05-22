@@ -1,0 +1,15 @@
+{
+  "title": "Forge - Experiment Dashboard",
+  "panels": [
+    {
+      "title": "Live Events",
+      "type": "graph",
+      "targets": [{ "expr": "rate(forge_events_total[1m])" }]
+    },
+    {
+      "title": "Node Status",
+      "type": "stat",
+      "targets": [{ "expr": "forge_nodes_active" }]
+    }
+  ]
+}
