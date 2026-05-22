@@ -1,0 +1,6 @@
+[]
+{"agent":"orchestrator","action":"bootstrap_setup","result":"ok","timestamp":"2026-05-23T05:00:00Z"}
+{"agent":"sandbox","action":"create_experiment","result":"ok","experiment_id":"abc123","timestamp":"2026-05-23T05:01:00Z"}
+{"agent":"chaos","action":"inject_latency","result":"ok","experiment_id":"abc123","target_node":"node-1","timestamp":"2026-05-23T05:02:00Z"}
+{"agent":"replay","action":"get_timeline","result":"ok","experiment_id":"abc123","event_count":5,"timestamp":"2026-05-23T05:03:00Z"}
+{"agent":"sandbox","action":"terminate_experiment","result":"ok","experiment_id":"abc123","timestamp":"2026-05-23T05:04:00Z"}
