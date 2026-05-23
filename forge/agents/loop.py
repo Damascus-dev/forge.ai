@@ -17,7 +17,7 @@ class AgentRuntime:
     def __init__(
         self,
         agent_id: str,
-        model: str = "ollama/qwen2.5:7b",
+        model: str = "ollama/qwen2.5:0.5b",
         system_prompt: str = "",
         node_runtime: NodeRuntime | None = None,
     ):
@@ -47,6 +47,7 @@ class AgentRuntime:
                 ],
                 tools=tool_defs,
                 tool_choice="auto",
+                keep_alive=0,
             )
             message = response.choices[0].message
 

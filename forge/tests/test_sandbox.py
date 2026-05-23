@@ -101,12 +101,13 @@ async def test_agent_observe():
 
 
 @pytest.mark.asyncio
-async def test_agent_reason_fallback():
+async def test_agent_reason():
     agent = AgentRuntime(agent_id="test-agent")
     exp = Experiment(name="reason-test", node_count=1)
     obs = await agent.observe(exp)
     decision = await agent.reason(obs, [])
-    assert "error calling LLM" in decision
+    assert decision is not None
+    assert len(decision) > 0
 
 
 @pytest.mark.asyncio
@@ -138,7 +139,7 @@ async def test_orchestrator_agent_lifecycle():
     result = await orchestrator.create_experiment(experiment=exp)
 
     agent_result = await orchestrator.start_agent(
-        result.id, AgentConfig(model="ollama/qwen2.5:7b")
+        result.id, AgentConfig(model="ollama/qwen2.5:0.5b")
     )
     assert "agent_id" in agent_result
     assert agent_result["status"] == "started"

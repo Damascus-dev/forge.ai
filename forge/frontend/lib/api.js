@@ -58,7 +58,7 @@ export async function injectFault(experimentId, targetNode, faultType, params = 
   });
 }
 
-export async function startAgent(experimentId, model = "ollama/qwen2.5:7b") {
+export async function startAgent(experimentId, model = "ollama/qwen2.5:0.5b") {
   return request(`/api/v1/experiments/${experimentId}/agent/start`, {
     method: "POST",
     body: JSON.stringify({ model }),

@@ -60,7 +60,7 @@ class FaultConfig(BaseModel):
 
 
 class AgentConfig(BaseModel):
-    model: str = "ollama/qwen2.5:7b"
+    model: str = "ollama/qwen2.5:0.5b"
     system_prompt: str = ""
     task_description: str = ""
 

@@ -22,7 +22,7 @@ export default function ExperimentPage() {
   const [replayResult, setReplayResult] = useState(null);
   const [agentId, setAgentId] = useState(null);
   const [agentLogs, setAgentLogs] = useState([]);
-  const [agentModel, setAgentModel] = useState("ollama/qwen2.5:7b");
+  const [agentModel, setAgentModel] = useState("ollama/qwen2.5:0.5b");
   const [faultType, setFaultType] = useState("latency");
   const [faultParams, setFaultParams] = useState("{}");
   const [actionMsg, setActionMsg] = useState("");
@@ -274,7 +274,7 @@ export default function ExperimentPage() {
                     value={agentModel}
                     onChange={(e) => setAgentModel(e.target.value)}
                     className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm"
-                    placeholder="ollama/qwen2.5:7b"
+                    placeholder="ollama/qwen2.5:0.5b"
                   />
                 </div>
                 <button onClick={handleStartAgent} className="px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors">
