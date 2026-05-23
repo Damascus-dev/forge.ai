@@ -1,6 +1,7 @@
-from docker.errors import DockerException
+from docker.errors import DockerException, NotFound
 
 from docker import from_env
+from docker.types import IPAMConfig, IPAMPool
 from forge.configs.settings import settings
 from forge.experiments.models import Experiment, Node
 
@@ -19,10 +20,25 @@ class NodeRuntime:
                 self._client = None
         return self._client
 
+    def _ensure_network(self):
+        client = self._get_client()
+        if client is None:
+            return
+        try:
+            client.networks.get(settings.docker_network)
+        except NotFound:
+            client.networks.create(
+                settings.docker_network,
+                driver="bridge",
+                check_duplicate=True,
+            )
+
     async def launch_nodes(self, experiment: Experiment) -> list[Node]:
         client = self._get_client()
         if client is None:
             return []
+
+        self._ensure_network()
 
         nodes = []
         container_ids = []

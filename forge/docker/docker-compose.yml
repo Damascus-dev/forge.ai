@@ -104,4 +104,5 @@ services:
 
 networks:
   forge_net:
+    name: forge_net
     driver: bridge
