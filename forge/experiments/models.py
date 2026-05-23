@@ -57,3 +57,20 @@ class FaultConfig(BaseModel):
     target_node: str
     fault_type: str  # latency, packet_loss, crash, disconnect
     params: dict = {}
+
+
+class AgentConfig(BaseModel):
+    model: str = "ollama/qwen2.5:7b"
+    system_prompt: str = ""
+    task_description: str = ""
+
+
+class AgentLog(BaseModel):
+    experiment_id: str
+    agent_id: str
+    step: int
+    observation: dict = {}
+    decision: str = ""
+    action: str = ""
+    result: dict = {}
+    timestamp: datetime = Field(default_factory=_now)

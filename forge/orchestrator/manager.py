@@ -1,8 +1,12 @@
 import uuid
 from datetime import datetime, timezone
 
+from forge.agents.loop import AgentRuntime
 from forge.chaos.engine import ChaosEngine
+from forge.events.store import EventStore, create_event_store
 from forge.experiments.models import (
+    AgentConfig,
+    AgentLog,
     Experiment,
     ExperimentEvent,
     ExperimentStatus,
@@ -15,14 +19,19 @@ from forge.telemetry.metrics import MetricsCollector
 
 
 class Orchestrator:
-    def __init__(self):
+    def __init__(self, event_store: EventStore | None = None):
         self.experiments: dict[str, Experiment] = {}
         self.nodes: dict[str, dict[str, Node]] = {}
-        self.events: dict[str, list[ExperimentEvent]] = {}
         self.node_runtime = NodeRuntime()
-        self.chaos_engine = ChaosEngine()
         self.replay_engine = ReplayEngine()
         self.metrics = MetricsCollector()
+        self._event_store = event_store
+        self.chaos_engine = ChaosEngine(node_runtime=self.node_runtime)
+        self.agents: dict[str, AgentRuntime] = {}
+
+    async def init_event_store(self) -> None:
+        if self._event_store is None:
+            self._event_store = await create_event_store()
 
     async def create_experiment(self, experiment: Experiment) -> Experiment:
         experiment.id = uuid.uuid4().hex[:12]
@@ -30,7 +39,7 @@ class Orchestrator:
         experiment.created_at = datetime.now(timezone.utc)
         self.experiments[experiment.id] = experiment
         self.nodes[experiment.id] = {}
-        self.events[experiment.id] = []
+        self.metrics.record_experiment_created()
         await self._log_event(
             experiment.id, "experiment.created", "system", {"name": experiment.name}
         )
@@ -47,7 +56,10 @@ class Orchestrator:
         if not experiment:
             return {"error": "not found"}
         experiment.status = ExperimentStatus.running
-        await self.node_runtime.launch_nodes(experiment)
+        nodes = await self.node_runtime.launch_nodes(experiment)
+        for node in nodes:
+            self.nodes[experiment_id][node.id] = node
+        self.metrics.set_nodes_active(len(nodes))
         await self._log_event(experiment_id, "experiment.started", "system", {})
         return {"status": "started", "experiment_id": experiment_id}
 
@@ -77,19 +89,33 @@ class Orchestrator:
         nodes = self.nodes.get(experiment_id, {})
         return list(nodes.values())
 
-    def get_events(self, experiment_id: str, limit: int = 100) -> list:
-        events = self.events.get(experiment_id, [])
-        return events[-limit:]
+    async def get_events(self, experiment_id: str, limit: int = 100) -> list:
+        store = await self._get_event_store()
+        events = await store.get_events(experiment_id, limit)
+        return [
+            {
+                "id": e.id,
+                "experiment_id": e.experiment_id,
+                "timestamp": e.timestamp.isoformat(),
+                "event_type": e.event_type,
+                "source": e.source,
+                "data": e.data,
+            }
+            for e in events
+        ]
 
     async def replay_experiment(self, experiment_id: str) -> dict | None:
         experiment = self.experiments.get(experiment_id)
         if not experiment:
             return None
-        events = self.events.get(experiment_id, [])
+        store = await self._get_event_store()
+        events = await store.get_events(experiment_id, limit=1000)
         return await self.replay_engine.replay(experiment, events)
 
-    def get_timeline(self, experiment_id: str) -> list | None:
-        if experiment_id not in self.events:
+    async def get_timeline(self, experiment_id: str) -> list | None:
+        store = await self._get_event_store()
+        events = await store.get_timeline(experiment_id)
+        if not events:
             return None
         return [
             {
@@ -98,8 +124,45 @@ class Orchestrator:
                 "source": e.source,
                 "data": e.data,
             }
-            for e in self.events[experiment_id]
+            for e in events
         ]
+
+    async def start_agent(self, experiment_id: str, config: AgentConfig) -> dict:
+        experiment = self.experiments.get(experiment_id)
+        if not experiment:
+            return {"error": "experiment not found"}
+        agent_id = f"agent-{uuid.uuid4().hex[:8]}"
+        agent = AgentRuntime(
+            agent_id=agent_id,
+            model=config.model,
+            system_prompt=config.system_prompt or "",
+            node_runtime=self.node_runtime,
+        )
+        self.agents[agent_id] = agent
+        await self._log_event(experiment_id, "agent.started", agent_id, {"model": config.model})
+        return {"agent_id": agent_id, "status": "started"}
+
+    async def run_agent_step(self, experiment_id: str, agent_id: str) -> dict:
+        experiment = self.experiments.get(experiment_id)
+        agent = self.agents.get(agent_id)
+        if not experiment:
+            return {"error": "experiment not found"}
+        if not agent:
+            return {"error": "agent not found"}
+        result = await agent.run_step(experiment)
+        await self._log_event(experiment_id, "agent.step", agent_id, {"step": result["step"]})
+        return result
+
+    def get_agent_logs(self, experiment_id: str, agent_id: str) -> list[AgentLog]:
+        agent = self.agents.get(agent_id)
+        if not agent:
+            return []
+        return agent.logs
+
+    async def _get_event_store(self) -> EventStore:
+        if self._event_store is None:
+            self._event_store = await create_event_store()
+        return self._event_store
 
     async def _log_event(self, experiment_id: str, event_type: str, source: str, data: dict):
         event = ExperimentEvent(
@@ -109,8 +172,8 @@ class Orchestrator:
             source=source,
             data=data,
         )
-        if experiment_id in self.events:
-            self.events[experiment_id].append(event)
+        store = await self._get_event_store()
+        await store.append_event(experiment_id, event)
         self.metrics.record_event(event)
 
 

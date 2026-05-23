@@ -7,4 +7,4 @@ router = APIRouter()
 
 @router.get("/{experiment_id}")
 async def get_events(experiment_id: str, limit: int = 100):
-    return orchestrator.get_events(experiment_id, limit)
+    return await orchestrator.get_events(experiment_id, limit)
