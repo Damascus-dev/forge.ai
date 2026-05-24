@@ -109,11 +109,15 @@ reccon.ai/
 | RAM | 8GB — default node_count=2, avoid heavy inference |
 | Docker | Required for full stack; API works standalone too |
 | Redis | System Redis on :6379 (Docker Redis is internal-only) |
+| PostgreSQL | **NEW:** Required for semantic logging (v1.0+) |
+| pgvector | **NEW:** Extension for vector embeddings |
 | Python | 3.12, venv at forge/.venv/ |
 | Subagents | Call API via curl — no MCP server |
 | Logging | All agents log to /tmp/forge-agent-log.jsonl |
 | Session close | Run forge/session_close.sh at end of each session |
-| LLM | Agent defaults to `ollama/qwen2.5:7b` — set `model` for OpenAI/Anthropic/etc |
+| LLM | Agent defaults to `ollama/qwen2.5:0.5b` (397MB) — set `model` for OpenAI/Anthropic/etc |
+| Embeddings | **NEW:** Uses Ollama locally (nomic-embed-text:latest, free) |
+| Weekly Summary | **NEW:** Auto-generated Friday 18:00 via APScheduler |
 
 ## Session History
 | When | What |
