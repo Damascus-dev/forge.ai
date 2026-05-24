@@ -19,6 +19,12 @@ dependencies = [
     "prometheus-client>=0.20.0",
     "python-json-logger>=2.0.0",
     "rich>=13.0.0",
+    # Semantic logging (Phase 6)
+    "asyncpg>=0.29.0",
+    "pgvector>=0.2.0",
+    "apscheduler>=3.10.0",
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.13.0",
 ]
 
 [project.optional-dependencies]
