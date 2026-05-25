@@ -4,8 +4,10 @@ PostgreSQL database operations for Forge.
 Handles async connections, migrations, and queries.
 """
 
+from datetime import datetime
 from typing import Optional
 
+import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -44,20 +46,89 @@ class PostgresDB:
         Returns:
             True if database is accessible
         """
-        # TODO: Implement in Phase 6
-        #  Query SELECT 1 to verify connectivity
-        return True
+        try:
+            session = await self.get_session()
+            await session.execute(sa.text("SELECT 1"))
+            await session.close()
+            return True
+        except Exception:
+            return False
 
+    async def insert_action(
+        self,
+        experiment_id: str,
+        agent_id: str,
+        action_type: str,
+        content: str,
+        embedding: list[float],
+    ) -> int:
+        """Insert agent action with embedding."""
+        session = await self.get_session()
+        try:
+            # Convert embedding list to pgvector string format
+            embedding_str = "[" + ",".join(str(x) for x in embedding) + "]"
+            
+            query = sa.text("""
+                INSERT INTO agent_actions (experiment_id, agent_id, action_type, content, embedding)
+                VALUES (:exp_id, :agent_id, :action_type, :content, CAST(:embedding AS vector))
+                RETURNING id
+            """)
+            result = await session.execute(
+                query,
+                {
+                    "exp_id": experiment_id,
+                    "agent_id": agent_id,
+                    "action_type": action_type,
+                    "content": content,
+                    "embedding": embedding_str,
+                }
+            )
+            row_id = result.scalar()
+            await session.commit()
+            return row_id
+        finally:
+            await session.close()
 
-# TODO: Phase 6 Implementation Tasks
-#  1. Create SQLAlchemy models for:
-#     - agent_actions table
-#     - embeddings table
-#     - weekly_summaries table
-#  2. Implement async queries:
-#     - insert_action_with_embedding()
-#     - query_by_embedding_similarity()
-#     - insert_weekly_summary()
-#     - query_weekly_summaries()
-#  3. Create Alembic migrations
-#  4. Test all queries with pytest
+    async def semantic_search(
+        self,
+        experiment_id: str,
+        query_embedding: list[float],
+        limit: int = 10,
+    ) -> list[dict]:
+        """Search similar actions by embedding."""
+        session = await self.get_session()
+        try:
+            # Convert embedding list to pgvector string format
+            embedding_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
+            
+            query = sa.text("""
+                SELECT id, experiment_id, agent_id, action_type, content, created_at,
+                       1 - (embedding <=> CAST(:query_embedding AS vector)) as similarity
+                FROM agent_actions
+                WHERE experiment_id = :exp_id
+                ORDER BY similarity DESC
+                LIMIT :limit
+            """)
+            result = await session.execute(
+                query,
+                {
+                    "query_embedding": embedding_str,
+                    "exp_id": experiment_id,
+                    "limit": limit,
+                }
+            )
+            rows = result.fetchall()
+            return [
+                {
+                    "id": row[0],
+                    "experiment_id": row[1],
+                    "agent_id": row[2],
+                    "action_type": row[3],
+                    "content": row[4],
+                    "created_at": row[5],
+                    "similarity": float(row[6]),
+                }
+                for row in rows
+            ]
+        finally:
+            await session.close()
