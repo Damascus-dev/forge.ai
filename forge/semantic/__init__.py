@@ -6,6 +6,7 @@ Handles embedding generation, semantic search, and weekly summaries.
 
 from .embeddings import EmbeddingEngine
 from .processor import SemanticProcessor
-from .scheduler import setup_scheduler
+from .summary import SummaryGenerator
+from .scheduler import SemanticScheduler
 
-__all__ = ["EmbeddingEngine", "SemanticProcessor", "setup_scheduler"]
+__all__ = ["EmbeddingEngine", "SemanticProcessor", "SummaryGenerator", "SemanticScheduler"]

@@ -9,6 +9,7 @@ from forge.db.postgres import PostgresDB
 from forge.semantic.embeddings import EmbeddingEngine
 from forge.semantic.processor import SemanticProcessor
 from forge.semantic.summary import SummaryGenerator
+from forge.semantic.scheduler import SemanticScheduler
 
 app = FastAPI(
     title=settings.project_name,
@@ -25,6 +26,7 @@ app.add_middleware(
 )
 
 # Initialize semantic logging if database URL is configured
+_semantic_scheduler: SemanticScheduler = None
 if hasattr(settings, 'database_url') and settings.database_url:
     try:
         _db = PostgresDB(settings.database_url)
@@ -32,6 +34,10 @@ if hasattr(settings, 'database_url') and settings.database_url:
         _processor = SemanticProcessor(_engine, _db)
         _summary_gen = SummaryGenerator(_db, _engine)
         semantic.init_semantic(_db, _processor, _summary_gen)
+        
+        # Initialize and start semantic scheduler
+        _semantic_scheduler = SemanticScheduler(_db, _engine)
+        _semantic_scheduler.start()
     except Exception:
         # If database initialization fails, semantic endpoints will return 503
         pass
@@ -47,6 +53,13 @@ app.include_router(semantic.router, tags=["semantic"])
 @app.get("/health")
 async def health():
     return {"status": "ok", "version": settings.version}
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on shutdown."""
+    if _semantic_scheduler:
+        _semantic_scheduler.stop()
 
 
 @app.get("/metrics")
