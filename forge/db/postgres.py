@@ -132,3 +132,99 @@ class PostgresDB:
             ]
         finally:
             await session.close()
+
+    async def insert_weekly_summary(
+        self,
+        experiment_id: str,
+        week_start: str,
+        week_end: str,
+        summary_text: str,
+        themes: list[str],
+        key_metrics: dict,
+        total_actions: int,
+    ) -> int:
+        """Insert weekly summary."""
+        from datetime import datetime as dt
+        
+        session = await self.get_session()
+        try:
+            # Convert ISO strings to date objects
+            week_start_date = dt.fromisoformat(week_start).date()
+            week_end_date = dt.fromisoformat(week_end).date()
+            
+            query = sa.text("""
+                INSERT INTO weekly_summaries 
+                  (experiment_id, week_start, week_end, summary_text, themes, key_metrics, total_actions)
+                VALUES (:exp_id, :week_start, :week_end, :summary_text, :themes, :metrics, :total)
+                ON CONFLICT (experiment_id, week_start) DO UPDATE
+                SET summary_text = :summary_text, themes = :themes, key_metrics = :metrics
+                RETURNING id
+            """)
+            result = await session.execute(
+                query,
+                {
+                    "exp_id": experiment_id,
+                    "week_start": week_start_date,
+                    "week_end": week_end_date,
+                    "summary_text": summary_text,
+                    "themes": themes,
+                    "metrics": key_metrics,
+                    "total": total_actions,
+                }
+            )
+            summary_id = result.scalar()
+            await session.commit()
+            return summary_id
+        finally:
+            await session.close()
+
+    async def get_weekly_summaries(
+        self,
+        experiment_id: Optional[str] = None,
+        limit: int = 10,
+        offset: int = 0,
+    ) -> tuple[list[dict], int]:
+        """Get weekly summaries with pagination."""
+        session = await self.get_session()
+        try:
+            where_clause = ""
+            params = {"limit": limit, "offset": offset}
+            
+            if experiment_id:
+                where_clause = "WHERE experiment_id = :exp_id"
+                params["exp_id"] = experiment_id
+            
+            # Get total count
+            count_query = sa.text(f"SELECT COUNT(*) FROM weekly_summaries {where_clause}")
+            count_result = await session.execute(count_query, params)
+            total = count_result.scalar()
+            
+            # Get paginated results
+            query = sa.text(f"""
+                SELECT id, experiment_id, week_start, week_end, summary_text, themes, 
+                       key_metrics, total_actions, created_at
+                FROM weekly_summaries
+                {where_clause}
+                ORDER BY week_start DESC
+                LIMIT :limit OFFSET :offset
+            """)
+            result = await session.execute(query, params)
+            rows = result.fetchall()
+            
+            summaries = [
+                {
+                    "id": row[0],
+                    "experiment_id": row[1],
+                    "week_start": str(row[2]),
+                    "week_end": str(row[3]),
+                    "summary_text": row[4],
+                    "themes": list(row[5]) if row[5] else [],
+                    "key_metrics": row[6] or {},
+                    "total_actions": row[7],
+                    "created_at": row[8],
+                }
+                for row in rows
+            ]
+            return summaries, total
+        finally:
+            await session.close()

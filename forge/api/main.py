@@ -8,6 +8,7 @@ from forge.configs.settings import settings
 from forge.db.postgres import PostgresDB
 from forge.semantic.embeddings import EmbeddingEngine
 from forge.semantic.processor import SemanticProcessor
+from forge.semantic.summary import SummaryGenerator
 
 app = FastAPI(
     title=settings.project_name,
@@ -29,7 +30,8 @@ if hasattr(settings, 'database_url') and settings.database_url:
         _db = PostgresDB(settings.database_url)
         _engine = EmbeddingEngine()
         _processor = SemanticProcessor(_engine, _db)
-        semantic.init_semantic(_db, _processor)
+        _summary_gen = SummaryGenerator(_db, _engine)
+        semantic.init_semantic(_db, _processor, _summary_gen)
     except Exception:
         # If database initialization fails, semantic endpoints will return 503
         pass
