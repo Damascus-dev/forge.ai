@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     redis_event_stream: str = "forge:events"
 
     sqlite_path: str = "data/forge.db"
+    database_url: str = "postgresql+asyncpg://forge:forge_password@localhost:5432/forge"
 
     docker_network: str = "forge_net"
     data_dir: str = "storage"

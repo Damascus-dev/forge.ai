@@ -3,7 +3,7 @@ FROM python:3.12-slim
 WORKDIR /app
 
 COPY pyproject.toml .
-RUN pip install --no-cache-dir fastapi uvicorn[standard] pydantic pydantic-settings docker redis httpx litellm prometheus-client python-json-logger rich
+RUN pip install --no-cache-dir -e . 2>&1 | grep -v "WARNING"
 
 RUN mkdir -p /forge
 COPY . /forge/
