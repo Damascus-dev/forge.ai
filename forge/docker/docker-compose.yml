@@ -6,23 +6,23 @@ services:
     networks:
       - forge_net
 
-  postgres:
-    image: pgvector/pgvector:pg15-latest
-    environment:
-      - POSTGRES_USER=forge
-      - POSTGRES_PASSWORD=forge_dev_local
-      - POSTGRES_DB=forge
-    expose:
-      - "5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - forge_net
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U forge"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  # postgres:
+  #   image: pgvector/pgvector:pg15-latest
+  #   environment:
+  #     - POSTGRES_USER=forge
+  #     - POSTGRES_PASSWORD=forge_dev_local
+  #     - POSTGRES_DB=forge
+  #   expose:
+  #     - "5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   networks:
+  #     - forge_net
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U forge"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
 
   api:
     build:
@@ -37,10 +37,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
+      - redis
     volumes:
       - ..:/forge
       - /var/run/docker.sock:/var/run/docker.sock
