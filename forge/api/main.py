@@ -9,6 +9,7 @@ from forge.db.postgres import PostgresDB
 from forge.semantic.embeddings import EmbeddingEngine
 from forge.semantic.processor import SemanticProcessor
 from forge.semantic.summary import SummaryGenerator
+from forge.semantic.insights import InsightsGenerator
 from forge.semantic.scheduler import SemanticScheduler
 
 app = FastAPI(
@@ -33,7 +34,8 @@ if hasattr(settings, 'database_url') and settings.database_url:
         _engine = EmbeddingEngine()
         _processor = SemanticProcessor(_engine, _db)
         _summary_gen = SummaryGenerator(_db, _engine)
-        semantic.init_semantic(_db, _processor, _summary_gen)
+        _insights_gen = InsightsGenerator(_db, _engine)
+        semantic.init_semantic(_db, _processor, _summary_gen, _insights_gen)
         
         # Initialize and start semantic scheduler
         _semantic_scheduler = SemanticScheduler(_db, _engine)

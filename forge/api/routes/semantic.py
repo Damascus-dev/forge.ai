@@ -11,6 +11,7 @@ from forge.db.postgres import PostgresDB
 from forge.semantic.embeddings import EmbeddingEngine
 from forge.semantic.processor import SemanticProcessor
 from forge.semantic.summary import SummaryGenerator
+from forge.semantic.insights import InsightsGenerator
 
 router = APIRouter(prefix="/api/v1", tags=["semantic"])
 
@@ -18,14 +19,21 @@ router = APIRouter(prefix="/api/v1", tags=["semantic"])
 _db: PostgresDB = None
 _processor: SemanticProcessor = None
 _summary_generator: SummaryGenerator = None
+_insights_generator: InsightsGenerator = None
 
 
-def init_semantic(db: PostgresDB, processor: SemanticProcessor, summary_gen: Optional[SummaryGenerator] = None):
+def init_semantic(
+    db: PostgresDB,
+    processor: SemanticProcessor,
+    summary_gen: Optional[SummaryGenerator] = None,
+    insights_gen: Optional[InsightsGenerator] = None,
+):
     """Initialize semantic routes with database and processor."""
-    global _db, _processor, _summary_generator
+    global _db, _processor, _summary_generator, _insights_generator
     _db = db
     _processor = processor
     _summary_generator = summary_gen
+    _insights_generator = insights_gen
 
 
 @router.get("/experiments/{experiment_id}/semantic-search")
@@ -108,10 +116,11 @@ async def get_semantic_insights(experiment_id: str):
     Returns:
         Semantic analysis including themes, anomalies, patterns
     """
-    # TODO: Phase 6 - Implement clustering and analysis
-    return {
-        "experiment_id": experiment_id,
-        "themes": [],
-        "anomalies": [],
-        "patterns": [],
-    }
+    if not _insights_generator:
+        raise HTTPException(status_code=503, detail="Insights generator not initialized")
+    
+    try:
+        insights = await _insights_generator.get_insights(experiment_id)
+        return insights
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
