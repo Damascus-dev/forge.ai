@@ -30,6 +30,30 @@ const nodeTypes = {
 };
 
 /**
+ * Enhanced edge with animation support
+ */
+function AnimatedEdgeComponent({ id, data }) {
+  return (
+    <g>
+      <path
+        d={data.path}
+        stroke={data.isActive ? "#ef4444" : "#d4d4d8"}
+        strokeWidth={data.isActive ? 3 : 2}
+        fill="none"
+        strokeDasharray={data.isActive ? "5,5" : ""}
+        style={{ animation: data.isActive ? "dashPulse 0.5s infinite" : "" }}
+      />
+      <style>{`
+        @keyframes dashPulse {
+          0% { stroke-dashoffset: 0; }
+          100% { stroke-dashoffset: 10; }
+        }
+      `}</style>
+    </g>
+  );
+}
+
+/**
  * ExperimentFlow - main visualization component
  * Renders experiment topology, nodes, chaos effects, and agent state
  */
@@ -85,9 +109,14 @@ export default function ExperimentFlow({ exp, nodes = [], agentId = null, active
 
     // 4. Add chaos effect edges
     Object.entries(activeChaos).forEach(([nodeId, chaos]) => {
-      newEdges.push(
-        createEdge(`exp-${exp.id}`, nodeId, EDGE_TYPES.CHAOS_EFFECT, `${chaos.type}`)
-      );
+      const edge = createEdge(`exp-${exp.id}`, nodeId, EDGE_TYPES.CHAOS_EFFECT, `${chaos.type}`);
+      // Mark chaos edges as active for animation
+      edge.animated = true;
+      edge.style = {
+        stroke: "#ef4444",
+        strokeWidth: 3,
+      };
+      newEdges.push(edge);
     });
 
     // Apply layout algorithm (hierarchical)
