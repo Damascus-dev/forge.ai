@@ -12,6 +12,7 @@ import { useEffect } from "react";
 import { ExperimentNode, SandboxNode, AgentNode, EventNode } from "./nodes";
 import { ChaosIndicator, MetricsOverlay } from "./ChaosVisualization";
 import { useFlowStore } from "@/lib/flow/store";
+import { computeHierarchicalLayout } from "@/lib/flow/layout";
 import {
   createExperimentNode,
   createSandboxNodes,
@@ -44,31 +45,25 @@ export default function ExperimentFlow({ exp, nodes = [], agentId = null, active
     const newNodes = [];
     const newEdges = [];
 
-    // 1. Create experiment node at center
+    // 1. Create experiment node
     const expNode = createExperimentNode(exp);
     newNodes.push(expNode);
 
-    // 2. Create sandbox nodes in a circle around experiment
+    // 2. Create sandbox nodes
     if (nodes.length > 0) {
-      const sandboxNodes = nodes.map((n, i) => {
-        const angle = (i / nodes.length) * 2 * Math.PI;
-        const radius = 250;
-        const x = radius * Math.cos(angle);
-        const y = radius * Math.sin(angle) + 150;
-        return {
-          id: `node-${n.id}`,
-          data: {
-            label: n.name,
-            status: n.status,
-            type: "sandbox_node",
-          },
-          position: { x, y },
-          type: NODE_TYPES.SANDBOX_NODE,
-          style: {
-            background: n.status === "running" ? "#22c55e" : "#ef4444",
-          },
-        };
-      });
+      const sandboxNodes = nodes.map((n) => ({
+        id: `node-${n.id}`,
+        data: {
+          label: n.name,
+          status: n.status,
+          type: "sandbox_node",
+        },
+        position: { x: 0, y: 0 },
+        type: NODE_TYPES.SANDBOX_NODE,
+        style: {
+          background: n.status === "running" ? "#22c55e" : "#ef4444",
+        },
+      }));
       newNodes.push(...sandboxNodes);
 
       // Connect experiment to each sandbox node
@@ -81,7 +76,7 @@ export default function ExperimentFlow({ exp, nodes = [], agentId = null, active
     if (agentId) {
       const agentState = store.agentStates[agentId] || {};
       const agentNode = createAgentNode(agentId, agentState.state || "idle");
-      agentNode.position = { x: -300, y: 150 };
+      agentNode.position = { x: 0, y: 0 };
       newNodes.push(agentNode);
 
       // Connect agent to experiment
@@ -95,7 +90,10 @@ export default function ExperimentFlow({ exp, nodes = [], agentId = null, active
       );
     });
 
-    setFlowNodes(newNodes);
+    // Apply layout algorithm (hierarchical)
+    const layoutNodes = computeHierarchicalLayout(newNodes, newEdges);
+
+    setFlowNodes(layoutNodes);
     setFlowEdges(newEdges);
   }, [exp, nodes, agentId, activeChaos, store, setFlowNodes, setFlowEdges]);
 

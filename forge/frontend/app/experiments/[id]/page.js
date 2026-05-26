@@ -1,13 +1,14 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import dynamic from "next/dynamic";
 import {
   getExperiment, startExperiment, terminateExperiment,
   listNodes, getEvents, getTimeline, startReplay,
   injectFault, startAgent, runAgentStep, getAgentLogs,
 } from "@/lib/api";
+import { ReplayEngine } from "@/lib/flow/replay-engine";
 
 const ExperimentFlow = dynamic(
   () => import("@/components/flow/ExperimentFlow"),
@@ -21,6 +22,21 @@ const ChaosPanel = dynamic(
 
 const AgentStatePanel = dynamic(
   () => import("@/components/flow/ChaosVisualization").then((m) => m.AgentStatePanel),
+  { ssr: false }
+);
+
+const ReplayTimeline = dynamic(
+  () => import("@/components/flow/ReplayTimeline").then((m) => m.ReplayTimeline),
+  { ssr: false }
+);
+
+const EventTimeline = dynamic(
+  () => import("@/components/flow/ReplayTimeline").then((m) => m.EventTimeline),
+  { ssr: false }
+);
+
+const ReplayControls = dynamic(
+  () => import("@/components/flow/ReplayControls").then((m) => m.ReplayControls),
   { ssr: false }
 );
 
@@ -44,6 +60,11 @@ export default function ExperimentPage() {
   const [actionMsg, setActionMsg] = useState("");
   const [activeChaos, setActiveChaos] = useState({});
   const [agentState, setAgentState] = useState({});
+  const [replayEngine, setReplayEngine] = useState(null);
+  const [isReplayPlaying, setIsReplayPlaying] = useState(false);
+  const [replayCurrentTime, setReplayCurrentTime] = useState(null);
+  const [replaySpeed, setReplaySpeed] = useState(1);
+  const [replayVisibleEvents, setReplayVisibleEvents] = useState([]);
 
   async function load() {
     try {
@@ -57,6 +78,18 @@ export default function ExperimentPage() {
   }
 
   useEffect(() => { load(); }, [id]);
+
+  // Initialize replay engine when events load
+  useEffect(() => {
+    if (events && events.length > 0) {
+      const engine = new ReplayEngine(events);
+      engine.onTimeChange = (time) => {
+        setReplayCurrentTime(time);
+        setReplayVisibleEvents(engine.getVisibleEvents());
+      };
+      setReplayEngine(engine);
+    }
+  }, [events]);
 
   async function loadNodes() {
     const data = await listNodes(id);
@@ -133,6 +166,44 @@ export default function ExperimentPage() {
   async function handleReplay() {
     const res = await startReplay(id);
     setReplayResult(res);
+    await loadEvents();
+  }
+
+  // Replay control handlers
+  function handleReplayPlay() {
+    if (replayEngine) {
+      replayEngine.start();
+      setIsReplayPlaying(true);
+    }
+  }
+
+  function handleReplayPause() {
+    if (replayEngine) {
+      replayEngine.pause();
+      setIsReplayPlaying(false);
+    }
+  }
+
+  function handleReplayStop() {
+    if (replayEngine) {
+      replayEngine.stop();
+      setIsReplayPlaying(false);
+      setReplayCurrentTime(null);
+      setReplayVisibleEvents([]);
+    }
+  }
+
+  function handleReplaySpeedChange(speed) {
+    if (replayEngine) {
+      replayEngine.setSpeed(speed);
+      setReplaySpeed(speed);
+    }
+  }
+
+  function handleReplayTimeChange(time) {
+    if (replayEngine) {
+      replayEngine.setTime(time);
+    }
   }
 
   if (loading) return <p className="text-zinc-400 text-sm">Loading...</p>;
@@ -271,44 +342,66 @@ export default function ExperimentPage() {
       )}
 
       {tab === "Replay" && (
-        <div className="p-4 border border-zinc-200 rounded-lg bg-white">
-          <h2 className="text-sm font-semibold text-zinc-500 mb-3">Replay</h2>
-          <button onClick={handleReplay} className="px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors mb-4">
-            Replay Experiment
-          </button>
-          {replayResult && (
-            <div className="text-sm space-y-1">
-              <p>Events: {replayResult.event_count}</p>
-              <div className="max-h-64 overflow-y-auto mt-2 space-y-1">
-                {replayResult.timeline.map((t, i) => (
-                  <div key={i} className="flex items-start gap-3 py-1.5 border-b border-zinc-100">
-                    <span className="text-xs text-zinc-400 font-mono whitespace-nowrap">
-                      {new Date(t.timestamp).toLocaleTimeString()}
-                    </span>
-                    <span className="px-1.5 py-0.5 rounded bg-zinc-100 text-xs font-medium">{t.type}</span>
-                    <span className="text-xs text-zinc-500">{t.source}</span>
+        <div className="space-y-4">
+          <div className="p-4 border border-zinc-200 rounded-lg bg-white">
+            <h2 className="text-sm font-semibold text-zinc-500 mb-3">Experiment Replay</h2>
+            <button
+              onClick={handleReplay}
+              className="px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors mb-4"
+            >
+              Load Timeline
+            </button>
+
+            {events && events.length > 0 ? (
+              <div className="space-y-4">
+                {/* Replay controls */}
+                <ReplayControls
+                  isPlaying={isReplayPlaying}
+                  onPlay={handleReplayPlay}
+                  onPause={handleReplayPause}
+                  onStop={handleReplayStop}
+                  onSpeedChange={handleReplaySpeedChange}
+                  currentSpeed={replaySpeed}
+                />
+
+                {/* Timeline scrubber */}
+                <ReplayTimeline
+                  events={events}
+                  currentTime={replayCurrentTime}
+                  onTimeChange={handleReplayTimeChange}
+                  isPlaying={isReplayPlaying}
+                />
+
+                {/* Visible events during replay */}
+                {replayVisibleEvents.length > 0 && (
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h3 className="text-sm font-semibold text-blue-900 mb-2">
+                      Events at current time ({replayVisibleEvents.length})
+                    </h3>
+                    <EventTimeline
+                      events={replayVisibleEvents}
+                      selectedTime={replayCurrentTime}
+                      onEventSelect={handleReplayTimeChange}
+                    />
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="mt-4">
-            <h3 className="text-sm font-semibold text-zinc-500 mb-2">Timeline</h3>
-            <button onClick={loadTimeline} className="text-xs text-zinc-400 hover:text-zinc-600 mb-2">Refresh</button>
-            {timeline && timeline.timeline ? (
-              <div className="max-h-64 overflow-y-auto space-y-1">
-                {timeline.timeline.map((t, i) => (
-                  <div key={i} className="flex items-start gap-3 py-1.5 border-b border-zinc-100 text-sm">
-                    <span className="text-xs text-zinc-400 font-mono whitespace-nowrap">
-                      {new Date(t.timestamp).toLocaleTimeString()}
-                    </span>
-                    <span className="px-1.5 py-0.5 rounded bg-zinc-100 text-xs font-medium">{t.type}</span>
-                    <span className="text-xs text-zinc-500">{t.source}</span>
+                )}
+
+                {/* Full event list */}
+                <details className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <summary className="text-sm font-semibold text-gray-700 cursor-pointer">
+                    All Events ({events.length})
+                  </summary>
+                  <div className="mt-3">
+                    <EventTimeline
+                      events={events}
+                      selectedTime={replayCurrentTime}
+                      onEventSelect={handleReplayTimeChange}
+                    />
                   </div>
-                ))}
+                </details>
               </div>
             ) : (
-              <p className="text-sm text-zinc-400">No timeline available.</p>
+              <p className="text-sm text-zinc-400">No events available. Run the experiment first.</p>
             )}
           </div>
         </div>
