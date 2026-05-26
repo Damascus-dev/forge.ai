@@ -2,13 +2,29 @@
 
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   getExperiment, startExperiment, terminateExperiment,
   listNodes, getEvents, getTimeline, startReplay,
   injectFault, startAgent, runAgentStep, getAgentLogs,
 } from "@/lib/api";
 
-const TABS = ["Overview", "Events", "Replay", "Agent"];
+const ExperimentFlow = dynamic(
+  () => import("@/components/flow/ExperimentFlow"),
+  { ssr: false, loading: () => <div className="h-96 bg-gray-100 rounded-lg animate-pulse" /> }
+);
+
+const ChaosPanel = dynamic(
+  () => import("@/components/flow/ChaosVisualization").then((m) => m.ChaosPanel),
+  { ssr: false }
+);
+
+const AgentStatePanel = dynamic(
+  () => import("@/components/flow/ChaosVisualization").then((m) => m.AgentStatePanel),
+  { ssr: false }
+);
+
+const TABS = ["Overview", "Flow", "Events", "Replay", "Agent"];
 
 export default function ExperimentPage() {
   const { id } = useParams();
@@ -26,6 +42,8 @@ export default function ExperimentPage() {
   const [faultType, setFaultType] = useState("latency");
   const [faultParams, setFaultParams] = useState("{}");
   const [actionMsg, setActionMsg] = useState("");
+  const [activeChaos, setActiveChaos] = useState({});
+  const [agentState, setAgentState] = useState({});
 
   async function load() {
     try {
@@ -78,6 +96,12 @@ export default function ExperimentPage() {
     try { params = JSON.parse(faultParams); } catch {}
     const res = await injectFault(id, target, faultType, params);
     setActionMsg(`Fault: ${res.status}`);
+    
+    // Track active chaos
+    setActiveChaos((prev) => ({
+      ...prev,
+      [target]: { type: faultType, params, startTime: Date.now() },
+    }));
   }
 
   async function handleStartAgent() {
@@ -92,6 +116,18 @@ export default function ExperimentPage() {
     setActionMsg(`Step ${res.step} done`);
     const logs = await getAgentLogs(id, agentId);
     setAgentLogs(logs);
+    
+    // Track agent state (update from latest log)
+    if (logs.length > 0) {
+      const latest = logs[logs.length - 1];
+      setAgentState({
+        state: 'acting', // Simplified - would need better logic in full impl
+        step: latest.step,
+        observation: latest.observation,
+        decision: latest.decision,
+        action: latest.action,
+      });
+    }
   }
 
   async function handleReplay() {
@@ -190,6 +226,22 @@ export default function ExperimentPage() {
               </button>
             </form>
           </div>
+        </div>
+      )}
+
+      {tab === "Flow" && (
+        <div className="space-y-4">
+          <ExperimentFlow 
+            exp={exp} 
+            nodes={nodes} 
+            agentId={agentId}
+            activeChaos={activeChaos}
+          />
+          {Object.keys(activeChaos).length > 0 && <ChaosPanel activeChaos={activeChaos} />}
+          {agentId && <AgentStatePanel agentId={agentId} state={agentState} />}
+          <p className="text-sm text-gray-500">
+            Visualization shows experiment topology. Use the toolbar to pan, zoom, and explore.
+          </p>
         </div>
       )}
 
