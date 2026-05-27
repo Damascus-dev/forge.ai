@@ -82,14 +82,8 @@ class SemanticProcessor:
         # Generate query embedding
         query_embedding = await self.embeddings.embed(query)
 
-        # Search in postgres
         return await self.db.semantic_search(
             experiment_id=experiment_id,
             query_embedding=query_embedding,
             limit=limit,
         )
-        # TODO: Implement in Phase 6
-        #  1. Embed the query
-        #  2. Search pgvector for similar embeddings
-        #  3. Return ranked results
-        return []

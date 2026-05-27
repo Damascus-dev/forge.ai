@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI):
                 _semantic_scheduler = SemanticScheduler(_db, _engine)
                 _semantic_scheduler.start()
         except Exception as e:
-            logger.warning("Semantic logging initialization failed: %s", e)
+            logger.warning("Semantic logging initialization failed: %s", e, exc_info=True)
     yield
     if _semantic_scheduler:
         _semantic_scheduler.stop()

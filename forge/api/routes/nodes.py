@@ -24,6 +24,11 @@ async def inject_fault(
     experiment_id: str,
     fault_type: str = Query(..., description="Type of fault: latency, packet_loss, crash, disconnect"),
     target_node: str = Query(..., description="Target node ID"),
-    params: dict = {},
+    params: str = "{}",
 ):
-    return await orchestrator.inject_fault(experiment_id, target_node, fault_type, params)
+    import json
+    try:
+        parsed = json.loads(params)
+    except json.JSONDecodeError:
+        parsed = {}
+    return await orchestrator.inject_fault(experiment_id, target_node, fault_type, parsed)
