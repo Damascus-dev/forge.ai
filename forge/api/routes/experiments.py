@@ -25,7 +25,7 @@ async def create_experiment(experiment: Experiment):
 async def list_experiments(
     status: str | None = Query(None, description="Filter by experiment status (pending, running, completed, failed)"),
 ):
-    exps = orchestrator.list_experiments()
+    exps = await orchestrator.list_experiments()
     if status:
         exps = [e for e in exps if e.status.value == status]
     return exps
@@ -38,7 +38,7 @@ async def list_experiments(
     description="Returns the full experiment object by ID, including status, node count, tags, and config.",
 )
 async def get_experiment(experiment_id: str):
-    exp = orchestrator.get_experiment(experiment_id)
+    exp = await orchestrator.get_experiment(experiment_id)
     if not exp:
         raise HTTPException(status_code=404, detail="Experiment not found")
     return exp

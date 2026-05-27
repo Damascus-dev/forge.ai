@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from forge.agents.loop import AgentRuntime
 from forge.chaos.engine import ChaosEngine
+from forge.configs.settings import settings
 from forge.events.store import EventStore, InMemoryEventStore, create_event_store
 from forge.experiments.models import (
     AgentConfig,
@@ -17,18 +18,19 @@ from forge.experiments.models import (
 )
 from forge.replay.engine import ReplayEngine
 from forge.runtime.node import NodeRuntime
+from forge.storage.store import ExperimentStore
 from forge.telemetry.metrics import MetricsCollector
 
 
 class Orchestrator:
-    def __init__(self, event_store: EventStore | None = None):
-        self.experiments: dict[str, Experiment] = {}
-        self.nodes: dict[str, dict[str, Node]] = {}
+    def __init__(self, event_store: EventStore | None = None, experiment_store: ExperimentStore | None = None):
+        self.experiment_store = experiment_store or ExperimentStore()
         self.node_runtime = NodeRuntime()
         self.replay_engine = ReplayEngine()
         self.metrics = MetricsCollector()
         self._event_store = event_store
         self.chaos_engine = ChaosEngine(node_runtime=self.node_runtime)
+        self.nodes: dict[str, dict[str, Node]] = {}
         self.agents: dict[str, AgentRuntime] = {}
 
     async def init_event_store(self) -> None:
@@ -39,37 +41,39 @@ class Orchestrator:
         experiment.id = uuid.uuid4().hex[:12]
         experiment.status = ExperimentStatus.pending
         experiment.created_at = datetime.now(timezone.utc)
-        self.experiments[experiment.id] = experiment
-        self.nodes[experiment.id] = {}
+        await self.experiment_store.save_experiment(experiment)
+        self.nodes.setdefault(experiment.id, {})
         self.metrics.record_experiment_created()
         await self._log_event(
             experiment.id, "experiment.created", "system", {"name": experiment.name}
         )
         return experiment
 
-    def list_experiments(self) -> list[Experiment]:
-        return list(self.experiments.values())
+    async def list_experiments(self) -> list[Experiment]:
+        return await self.experiment_store.list_experiments()
 
-    def get_experiment(self, experiment_id: str) -> Experiment | None:
-        return self.experiments.get(experiment_id)
+    async def get_experiment(self, experiment_id: str) -> Experiment | None:
+        return await self.experiment_store.get_experiment(experiment_id)
 
     async def start_experiment(self, experiment_id: str) -> dict:
-        experiment = self.experiments.get(experiment_id)
+        experiment = await self.experiment_store.get_experiment(experiment_id)
         if not experiment:
             return {"error": "not found"}
         experiment.status = ExperimentStatus.running
+        await self.experiment_store.save_experiment(experiment)
         nodes = await self.node_runtime.launch_nodes(experiment)
         for node in nodes:
-            self.nodes[experiment_id][node.id] = node
+            self.nodes.setdefault(experiment_id, {})[node.id] = node
         self.metrics.set_nodes_active(len(nodes))
         await self._log_event(experiment_id, "experiment.started", "system", {})
         return {"status": "started", "experiment_id": experiment_id}
 
     async def terminate_experiment(self, experiment_id: str) -> dict:
-        experiment = self.experiments.get(experiment_id)
+        experiment = await self.experiment_store.get_experiment(experiment_id)
         if not experiment:
             return {"error": "not found"}
         experiment.status = ExperimentStatus.completed
+        await self.experiment_store.save_experiment(experiment)
         await self.node_runtime.teardown_nodes(experiment_id)
         await self._log_event(experiment_id, "experiment.terminated", "system", {})
         return {"status": "terminated", "experiment_id": experiment_id}
@@ -86,7 +90,6 @@ class Orchestrator:
         result = await self.chaos_engine.inject_fault(config)
         await self._log_event(experiment_id, f"fault.{fault_type}", target_node, params)
 
-        # Broadcast chaos update to WebSocket clients
         try:
             from forge.api.routes.ws import manager as ws_manager
             await ws_manager.broadcast(experiment_id, {
@@ -103,8 +106,10 @@ class Orchestrator:
 
         return result
 
-    def list_nodes(self, experiment_id: str) -> list:
+    async def list_nodes(self, experiment_id: str) -> list:
         nodes = self.nodes.get(experiment_id, {})
+        if not nodes:
+            return []
         return list(nodes.values())
 
     async def get_events(self, experiment_id: str, limit: int = 100) -> list:
@@ -123,7 +128,7 @@ class Orchestrator:
         ]
 
     async def replay_experiment(self, experiment_id: str) -> dict | None:
-        experiment = self.experiments.get(experiment_id)
+        experiment = await self.experiment_store.get_experiment(experiment_id)
         if not experiment:
             return None
         store = await self._get_event_store()
@@ -146,7 +151,7 @@ class Orchestrator:
         ]
 
     async def start_agent(self, experiment_id: str, config: AgentConfig) -> dict:
-        experiment = self.experiments.get(experiment_id)
+        experiment = await self.experiment_store.get_experiment(experiment_id)
         if not experiment:
             return {"error": "experiment not found"}
         agent_id = f"agent-{uuid.uuid4().hex[:8]}"
@@ -161,7 +166,7 @@ class Orchestrator:
         return {"agent_id": agent_id, "status": "started"}
 
     async def run_agent_step(self, experiment_id: str, agent_id: str) -> dict:
-        experiment = self.experiments.get(experiment_id)
+        experiment = await self.experiment_store.get_experiment(experiment_id)
         agent = self.agents.get(agent_id)
         if not experiment:
             return {"error": "experiment not found"}
@@ -170,7 +175,6 @@ class Orchestrator:
         result = await agent.run_step(experiment)
         await self._log_event(experiment_id, "agent.step", agent_id, {"step": result["step"]})
 
-        # Broadcast agent state update to WebSocket clients
         try:
             from forge.api.routes.ws import manager as ws_manager
             logs = agent.logs
@@ -203,27 +207,30 @@ class Orchestrator:
         return self._event_store
 
     async def delete_experiment(self, experiment_id: str) -> dict:
-        experiment = self.experiments.pop(experiment_id, None)
+        experiment = await self.experiment_store.get_experiment(experiment_id)
         if not experiment:
             return {"error": "not found"}
+        await self.experiment_store.delete_experiment(experiment_id)
         self.nodes.pop(experiment_id, None)
-        for aid in list(self.agents.keys()):
+        agent_ids_to_remove = [aid for aid, a in self.agents.items() if aid.startswith("agent-")]
+        for aid in agent_ids_to_remove:
             self.agents.pop(aid, None)
         self.metrics.record_experiment_deleted()
         return {"status": "deleted", "experiment_id": experiment_id}
 
     async def update_experiment(self, experiment_id: str, updates: dict) -> Experiment | None:
-        experiment = self.experiments.get(experiment_id)
+        experiment = await self.experiment_store.get_experiment(experiment_id)
         if not experiment:
             return None
         for key, value in updates.items():
             if value is not None and hasattr(experiment, key):
                 setattr(experiment, key, value)
+        await self.experiment_store.save_experiment(experiment)
         await self._log_event(experiment_id, "experiment.updated", "system", {"updates": list(updates.keys())})
         return experiment
 
     async def get_experiment_metrics(self, experiment_id: str) -> dict:
-        experiment = self.experiments.get(experiment_id)
+        experiment = await self.experiment_store.get_experiment(experiment_id)
         if not experiment:
             return {"error": "not found"}
         store = await self._get_event_store()
@@ -269,7 +276,7 @@ class Orchestrator:
         }
 
     async def export_experiment(self, experiment_id: str, fmt: ExportFormat = ExportFormat.json) -> dict:
-        experiment = self.experiments.get(experiment_id)
+        experiment = await self.experiment_store.get_experiment(experiment_id)
         if not experiment:
             return {"error": "not found"}
         store = await self._get_event_store()
@@ -324,4 +331,7 @@ class Orchestrator:
             pass  # WebSocket broadcast is non-critical
 
 
-orchestrator = Orchestrator(event_store=InMemoryEventStore())
+orchestrator = Orchestrator(
+    event_store=InMemoryEventStore(),
+    experiment_store=ExperimentStore(path=settings.data_dir + "/experiments.json"),
+)

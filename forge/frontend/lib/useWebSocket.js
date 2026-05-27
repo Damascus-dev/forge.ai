@@ -24,7 +24,11 @@ export function useExperimentWebSocket(experimentId, {
   const connect = useCallback(() => {
     if (!experimentId || !enabled) return;
 
-    const ws = new WebSocket(`${WS_URL}/api/v1/experiments/${experimentId}/ws`);
+    const apiKey = typeof window !== "undefined" ? localStorage.getItem("forge_api_key") : "";
+    const wsUrl = apiKey
+      ? `${WS_URL}/api/v1/experiments/${experimentId}/ws?api_key=${encodeURIComponent(apiKey)}`
+      : `${WS_URL}/api/v1/experiments/${experimentId}/ws`;
+    const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
       setConnected(true);

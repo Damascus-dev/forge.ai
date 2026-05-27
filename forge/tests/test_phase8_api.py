@@ -48,7 +48,7 @@ async def test_delete_experiment():
     created = await orch.create_experiment(exp)
     result = await orch.delete_experiment(created.id)
     assert result["status"] == "deleted"
-    assert orch.get_experiment(created.id) is None
+    assert await orch.get_experiment(created.id) is None
 
 
 @pytest.mark.asyncio(loop_scope="function")
@@ -108,7 +108,8 @@ async def test_orch_list_empty():
     from forge.events.store import InMemoryEventStore
     from forge.orchestrator.manager import Orchestrator
     orch = Orchestrator(event_store=InMemoryEventStore())
-    assert orch.list_experiments() == []
+    exps = await orch.list_experiments()
+    assert exps == []
 
 
 @pytest.mark.asyncio(loop_scope="function")

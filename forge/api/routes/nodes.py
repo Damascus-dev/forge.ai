@@ -11,7 +11,7 @@ router = APIRouter()
     description="Returns all container nodes for a given experiment, including their status, type, and container ID.",
 )
 async def list_nodes(experiment_id: str):
-    nodes = orchestrator.list_nodes(experiment_id)
+    nodes = await orchestrator.list_nodes(experiment_id)
     return nodes
 
 
