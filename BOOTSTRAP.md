@@ -86,19 +86,25 @@ reccon.ai/
 | POST | `/api/v1/replay/{id}/start` | Start replay |
 | POST | `/api/v1/experiments/{id}/agent/start` | Start AI agent |
 | POST | `/api/v1/experiments/{id}/agent/{aid}/step` | Run agent step |
-| GET | `/api/v1/experiments/{id}/agent/{aid}/logs` | Get agent logs |
+| GET | `/api/v1/experiments/{id}/metrics` | Experiment metrics |
+| GET | `/api/v1/experiments/{id}/events/stats` | Event statistics |
+| GET | `/api/v1/experiments/{id}/export` | Export experiment data |
+| PATCH | `/api/v1/experiments/{id}` | Update experiment |
+| DELETE | `/api/v1/experiments/{id}` | Delete experiment |
+| WS | `/api/v1/experiments/{id}/ws` | Real-time event stream |
 
 ## Current State — Real vs Stubs
 | Component | Status |
 |---|---|
-| API endpoints | All defined, working |
-| Experiment CRUD | Working (in-memory) |
+| API endpoints (22 total) | All defined, working, documented |
+| Experiment CRUD | Working (in-memory with Redis optional) |
 | Event store | **Redis Streams** (falls back to in-memory) |
 | Docker SDK | **Real docker-py** — spawns/tears down Alpine containers |
 | Chaos engine | **Real tc/netem** — latency, packet loss, crash, disconnect |
 | Agent loop | **LiteLLM** — calls any OpenAI-compatible model with tool calling |
 | Docker compose (9 services) | API, Redis, cAdvisor, Prometheus, Grafana, Frontend, 3x nodes |
-| Frontend | **Next.js 14 dashboard** — experiment list, detail, replay, agent control |
+| Frontend | **Next.js 14** with React Flow, Framer Motion, Zustand |
+| Tests | **91 passing** across unit, integration, and E2E suites |
 | Prometheus/Grafana | **Running** — auto-provisioned with Forge dashboard |
 | Replay engine | Working |
 | Subagents (6) | Installed globally |
