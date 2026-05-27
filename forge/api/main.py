@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
-from forge.api.routes import agents, events, experiments, nodes, replay, semantic
+from forge.api.routes import agents, events, experiments, nodes, replay, semantic, ws
 from forge.configs.settings import settings
 from forge.db.postgres import PostgresDB
 from forge.semantic.embeddings import EmbeddingEngine
@@ -50,6 +50,7 @@ app.include_router(events.router, prefix="/api/v1/events", tags=["events"])
 app.include_router(replay.router, prefix="/api/v1/replay", tags=["replay"])
 app.include_router(agents.router, prefix="/api/v1/experiments", tags=["agents"])
 app.include_router(semantic.router, tags=["semantic"])
+app.include_router(ws.router)
 
 
 @app.get("/health")

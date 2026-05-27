@@ -126,3 +126,82 @@ export function calculateEventDensity(events, bucketCount = 20) {
     timestamp: startTime + i * bucketSize,
   }));
 }
+
+/**
+ * Cluster events by type and time proximity
+ * Groups similar events within a time window to reduce visual noise
+ */
+export function clusterEvents(events, timeWindowMs = 5000) {
+  if (!events || events.length === 0) return [];
+
+  const sorted = [...events].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
+
+  const clusters = [];
+  let currentCluster = null;
+
+  for (const event of sorted) {
+    const eventTime = new Date(event.timestamp).getTime();
+    if (isNaN(eventTime)) continue;
+
+    if (
+      currentCluster &&
+      event.event_type === currentCluster.event_type &&
+      eventTime - currentCluster.endTime <= timeWindowMs
+    ) {
+      currentCluster.count++;
+      currentCluster.endTime = eventTime;
+      currentCluster.sources.add(event.source || 'unknown');
+    } else {
+      if (currentCluster) {
+        clusters.push(finalizeCluster(currentCluster));
+      }
+      currentCluster = {
+        event_type: event.event_type,
+        startTime: eventTime,
+        endTime: eventTime,
+        count: 1,
+        sources: new Set([event.source || 'unknown']),
+        representativeEvent: event,
+      };
+    }
+  }
+
+  if (currentCluster) {
+    clusters.push(finalizeCluster(currentCluster));
+  }
+
+  return clusters;
+}
+
+function finalizeCluster(cluster) {
+  return {
+    event_type: cluster.event_type,
+    startTime: cluster.startTime,
+    endTime: cluster.endTime,
+    count: cluster.count,
+    sources: [...cluster.sources],
+    timestamp: new Date(cluster.startTime).toISOString(),
+    data: {
+      ...cluster.representativeEvent.data,
+      clustered: true,
+      clusterCount: cluster.count,
+    },
+  };
+}
+
+/**
+ * Calculate clustering statistics for performance monitoring
+ */
+export function getClusteringStats(events, timeWindowMs = 5000) {
+  const clustered = clusterEvents(events, timeWindowMs);
+  return {
+    originalCount: events.length,
+    clusteredCount: clustered.length,
+    reductionRatio: events.length > 0
+      ? ((1 - clustered.length / events.length) * 100).toFixed(1) + '%'
+      : '0%',
+    timeWindowMs,
+  };
+}

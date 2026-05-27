@@ -83,6 +83,22 @@ class Orchestrator:
         )
         result = await self.chaos_engine.inject_fault(config)
         await self._log_event(experiment_id, f"fault.{fault_type}", target_node, params)
+
+        # Broadcast chaos update to WebSocket clients
+        try:
+            from forge.api.routes.ws import manager as ws_manager
+            await ws_manager.broadcast(experiment_id, {
+                "type": "chaos",
+                "payload": {
+                    "nodeId": target_node,
+                    "type": fault_type,
+                    "params": params,
+                    "startTime": datetime.now(timezone.utc).isoformat(),
+                },
+            })
+        except Exception:
+            pass
+
         return result
 
     def list_nodes(self, experiment_id: str) -> list:
@@ -151,6 +167,26 @@ class Orchestrator:
             return {"error": "agent not found"}
         result = await agent.run_step(experiment)
         await self._log_event(experiment_id, "agent.step", agent_id, {"step": result["step"]})
+
+        # Broadcast agent state update to WebSocket clients
+        try:
+            from forge.api.routes.ws import manager as ws_manager
+            logs = agent.logs
+            latest = logs[-1] if logs else None
+            if latest:
+                await ws_manager.broadcast(experiment_id, {
+                    "type": "agent_state",
+                    "payload": {
+                        "state": "acting",
+                        "step": latest.step,
+                        "observation": latest.observation,
+                        "decision": latest.decision,
+                        "action": latest.action,
+                    },
+                })
+        except Exception:
+            pass
+
         return result
 
     def get_agent_logs(self, experiment_id: str, agent_id: str) -> list[AgentLog]:
@@ -175,6 +211,23 @@ class Orchestrator:
         store = await self._get_event_store()
         await store.append_event(experiment_id, event)
         self.metrics.record_event(event)
+
+        # Broadcast to WebSocket clients
+        try:
+            from forge.api.routes.ws import manager as ws_manager
+            await ws_manager.broadcast(experiment_id, {
+                "type": "event",
+                "payload": {
+                    "id": event.id,
+                    "experiment_id": event.experiment_id,
+                    "timestamp": event.timestamp.isoformat(),
+                    "event_type": event.event_type,
+                    "source": event.source,
+                    "data": event.data,
+                },
+            })
+        except Exception:
+            pass  # WebSocket broadcast is non-critical
 
 
 orchestrator = Orchestrator()

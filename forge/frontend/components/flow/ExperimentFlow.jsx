@@ -107,15 +107,19 @@ export default function ExperimentFlow({ exp, nodes = [], agentId = null, active
       newEdges.push(createEdge(`agent-${agentId}`, `exp-${exp.id}`, EDGE_TYPES.COMMUNICATION, "observes"));
     }
 
-    // 4. Add chaos effect edges
+    // 4. Add chaos effect edges with parameter visualization
     Object.entries(activeChaos).forEach(([nodeId, chaos]) => {
-      const edge = createEdge(`exp-${exp.id}`, nodeId, EDGE_TYPES.CHAOS_EFFECT, `${chaos.type}`);
-      // Mark chaos edges as active for animation
+      const paramsStr = chaos.params
+        ? Object.entries(chaos.params).map(([k, v]) => `${k}=${v}`).join(", ")
+        : "";
+      const label = paramsStr ? `${chaos.type} (${paramsStr})` : `${chaos.type}`;
+      const edge = createEdge(`exp-${exp.id}`, nodeId, EDGE_TYPES.CHAOS_EFFECT, label);
       edge.animated = true;
       edge.style = {
         stroke: "#ef4444",
         strokeWidth: 3,
       };
+      edge.labelStyle = { fill: "#ef4444", fontWeight: "bold", fontSize: 11 };
       newEdges.push(edge);
     });
 
