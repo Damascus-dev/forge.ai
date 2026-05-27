@@ -16,3 +16,12 @@ dist/
 .ruff_cache/
 .mypy_cache/
 .pytest_cache/
+
+# Agent/session artifacts
+*.log
+tmp/
+.cache/
+
+# Future private folders
+devsec/private/
+devsec/secrets/
