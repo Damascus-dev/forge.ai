@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useCallback, useState } from "react";
+import { getApiKey } from "./keychain";
 
 /**
  * WebSocket hook for real-time experiment event streaming
@@ -24,7 +25,7 @@ export function useExperimentWebSocket(experimentId, {
   const connect = useCallback(() => {
     if (!experimentId || !enabled) return;
 
-    const apiKey = typeof window !== "undefined" ? localStorage.getItem("forge_api_key") : "";
+    const apiKey = getApiKey();
     const wsUrl = apiKey
       ? `${WS_URL}/api/v1/experiments/${experimentId}/ws?api_key=${encodeURIComponent(apiKey)}`
       : `${WS_URL}/api/v1/experiments/${experimentId}/ws`;

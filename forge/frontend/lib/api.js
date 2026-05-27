@@ -1,9 +1,6 @@
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { getApiKey } from "./keychain";
 
-function getApiKey() {
-  if (typeof window === "undefined") return "";
-  return localStorage.getItem("forge_api_key") || "";
-}
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function request(path, options = {}) {
   const apiKey = getApiKey();

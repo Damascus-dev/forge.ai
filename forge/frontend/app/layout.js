@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { setApiKey as storeKey, clearApiKey } from "../lib/keychain";
 import "./globals.css";
 
 export const metadata = {
@@ -13,18 +14,14 @@ export default function RootLayout({ children }) {
   const [apiKey, setApiKey] = useState("");
   const [showKeyInput, setShowKeyInput] = useState(false);
 
-  useEffect(() => {
-    setApiKey(localStorage.getItem("forge_api_key") || "");
-  }, []);
-
   function handleKeySave(e) {
     e.preventDefault();
-    localStorage.setItem("forge_api_key", apiKey);
+    storeKey(apiKey);
     setShowKeyInput(false);
   }
 
   function handleKeyClear() {
-    localStorage.removeItem("forge_api_key");
+    clearApiKey();
     setApiKey("");
     setShowKeyInput(false);
   }
