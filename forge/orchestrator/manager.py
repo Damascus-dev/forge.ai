@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from forge.agents.loop import AgentRuntime
 from forge.chaos.engine import ChaosEngine
-from forge.events.store import EventStore, create_event_store
+from forge.events.store import InMemoryEventStore, EventStore, create_event_store
 from forge.experiments.models import (
     AgentConfig,
     AgentLog,
@@ -325,4 +325,4 @@ class Orchestrator:
             pass  # WebSocket broadcast is non-critical
 
 
-orchestrator = Orchestrator()
+orchestrator = Orchestrator(event_store=InMemoryEventStore())
