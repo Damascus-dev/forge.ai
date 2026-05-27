@@ -23,6 +23,13 @@ class ExperimentStatus(str, Enum):
     failed = "failed"
 
 
+class EventSeverity(str, Enum):
+    info = "info"
+    warning = "warning"
+    error = "error"
+    critical = "critical"
+
+
 class Experiment(BaseModel):
     id: str = Field(default_factory=lambda: __import__("uuid").uuid4().hex[:12])
     name: str
@@ -31,6 +38,14 @@ class Experiment(BaseModel):
     node_count: int = 2
     created_at: datetime = Field(default_factory=_now)
     config: dict = {}
+    tags: list[str] = []
+
+
+class ExperimentUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    config: Optional[dict] = None
+    tags: Optional[list[str]] = None
 
 
 class Node(BaseModel):
@@ -41,6 +56,7 @@ class Node(BaseModel):
     container_id: Optional[str] = None
     status: str = "created"
     created_at: datetime = Field(default_factory=_now)
+    tags: list[str] = []
 
 
 class ExperimentEvent(BaseModel):
@@ -50,6 +66,9 @@ class ExperimentEvent(BaseModel):
     event_type: str
     source: str
     data: dict = {}
+    severity: EventSeverity = EventSeverity.info
+    metadata: dict = {}
+    tags: list[str] = []
 
 
 class FaultConfig(BaseModel):
@@ -57,6 +76,7 @@ class FaultConfig(BaseModel):
     target_node: str
     fault_type: str  # latency, packet_loss, crash, disconnect
     params: dict = {}
+    severity: EventSeverity = EventSeverity.warning
 
 
 class AgentConfig(BaseModel):
@@ -74,3 +94,21 @@ class AgentLog(BaseModel):
     action: str = ""
     result: dict = {}
     timestamp: datetime = Field(default_factory=_now)
+
+
+class ExportFormat(str, Enum):
+    json = "json"
+    csv = "csv"
+    markdown = "markdown"
+
+
+class HealthComponent(BaseModel):
+    name: str
+    status: str
+    details: Optional[dict] = None
+
+
+class HealthCheck(BaseModel):
+    status: str
+    version: str
+    components: list[HealthComponent]

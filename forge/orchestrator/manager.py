@@ -7,9 +7,11 @@ from forge.events.store import EventStore, create_event_store
 from forge.experiments.models import (
     AgentConfig,
     AgentLog,
+    EventSeverity,
     Experiment,
     ExperimentEvent,
     ExperimentStatus,
+    ExportFormat,
     FaultConfig,
     Node,
 )
@@ -200,13 +202,106 @@ class Orchestrator:
             self._event_store = await create_event_store()
         return self._event_store
 
-    async def _log_event(self, experiment_id: str, event_type: str, source: str, data: dict):
+    async def delete_experiment(self, experiment_id: str) -> dict:
+        experiment = self.experiments.pop(experiment_id, None)
+        if not experiment:
+            return {"error": "not found"}
+        self.nodes.pop(experiment_id, None)
+        agent_ids = [aid for aid, a in self.agents.items() if a._agent_id in experiment_id or True]
+        for aid in list(self.agents.keys()):
+            self.agents.pop(aid, None)
+        self.metrics.record_experiment_deleted()
+        return {"status": "deleted", "experiment_id": experiment_id}
+
+    async def update_experiment(self, experiment_id: str, updates: dict) -> Experiment | None:
+        experiment = self.experiments.get(experiment_id)
+        if not experiment:
+            return None
+        for key, value in updates.items():
+            if value is not None and hasattr(experiment, key):
+                setattr(experiment, key, value)
+        await self._log_event(experiment_id, "experiment.updated", "system", {"updates": list(updates.keys())})
+        return experiment
+
+    async def get_experiment_metrics(self, experiment_id: str) -> dict:
+        experiment = self.experiments.get(experiment_id)
+        if not experiment:
+            return {"error": "not found"}
+        store = await self._get_event_store()
+        events = await store.get_events(experiment_id, limit=10000)
+        event_types = {}
+        severities = {}
+        for e in events:
+            event_types[e.event_type] = event_types.get(e.event_type, 0) + 1
+            sev = getattr(e, 'severity', 'info')
+            if isinstance(sev, EventSeverity):
+                sev = sev.value
+            severities[sev] = severities.get(sev, 0) + 1
+        return {
+            "experiment_id": experiment_id,
+            "status": experiment.status.value,
+            "total_events": len(events),
+            "event_types": event_types,
+            "severities": severities,
+            "node_count": experiment.node_count,
+            "runtime_seconds": (datetime.now(timezone.utc) - experiment.created_at).total_seconds(),
+        }
+
+    async def get_event_stats(self, experiment_id: str) -> dict:
+        store = await self._get_event_store()
+        events = await store.get_events(experiment_id, limit=10000)
+        if not events:
+            return {"total": 0, "by_type": {}, "by_source": {}, "by_severity": {}}
+        by_type = {}
+        by_source = {}
+        by_severity = {}
+        for e in events:
+            by_type[e.event_type] = by_type.get(e.event_type, 0) + 1
+            by_source[e.source] = by_source.get(e.source, 0) + 1
+            sev = getattr(e, 'severity', 'info')
+            if isinstance(sev, EventSeverity):
+                sev = sev.value
+            by_severity[sev] = by_severity.get(sev, 0) + 1
+        return {
+            "total": len(events),
+            "by_type": by_type,
+            "by_source": by_source,
+            "by_severity": by_severity,
+        }
+
+    async def export_experiment(self, experiment_id: str, fmt: ExportFormat = ExportFormat.json) -> dict:
+        experiment = self.experiments.get(experiment_id)
+        if not experiment:
+            return {"error": "not found"}
+        store = await self._get_event_store()
+        events = await store.get_events(experiment_id, limit=10000)
+        nodes = list(self.nodes.get(experiment_id, {}).values())
+        return {
+            "experiment": experiment.model_dump(),
+            "nodes": [n.model_dump() for n in nodes],
+            "events": [
+                {
+                    "id": e.id,
+                    "timestamp": e.timestamp.isoformat(),
+                    "event_type": e.event_type,
+                    "source": e.source,
+                    "data": e.data,
+                    "severity": getattr(e, 'severity', EventSeverity.info).value if hasattr(e, 'severity') else 'info',
+                }
+                for e in events
+            ],
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "export_format": fmt,
+        }
+
+    async def _log_event(self, experiment_id: str, event_type: str, source: str, data: dict, severity: EventSeverity = EventSeverity.info):
         event = ExperimentEvent(
             experiment_id=experiment_id,
             timestamp=datetime.now(timezone.utc),
             event_type=event_type,
             source=source,
             data=data,
+            severity=severity,
         )
         store = await self._get_event_store()
         await store.append_event(experiment_id, event)
