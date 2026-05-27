@@ -1,5 +1,7 @@
 # Forge AI
 
+[![CI](https://github.com/Damascus-dev/forge.ai/actions/workflows/ci.yml/badge.svg)](https://github.com/Damascus-dev/forge.ai/actions/workflows/ci.yml)
+
 Distributed system experimentation platform for chaos engineering, AI agent orchestration, and experiment observability.
 
 ## Architecture
@@ -64,7 +66,27 @@ FORGE_DATABASE_URL=postgresql+asyncpg://forge:forge_password@localhost:5432/forg
 Set `FORGE_API_KEY` to enable API key auth:
 - HTTP: pass `X-API-Key` header
 - WebSocket: pass `?api_key=` query parameter
-- Frontend: click the 🔓 icon in the header to enter the key (stored in localStorage)
+- Frontend: click the 🔓 icon in the header to enter the key (stored in memory, session-scoped)
+
+### Rate Limiting
+
+Requests are rate-limited to 100/min per client IP when auth is enabled (`FORGE_DEBUG=false`).
+Rate limiting is automatically disabled in debug mode.
+
+### Health Check
+
+`GET /health` reports backend, database, Redis, and Ollama status:
+
+```json
+{
+  "status": "healthy",
+  "ollama": "healthy",
+  "database": "connected",
+  "redis": "connected"
+}
+```
+
+Ollama shows `degraded` when unavailable (system falls back to bag-of-words).
 
 ### Embeddings
 
