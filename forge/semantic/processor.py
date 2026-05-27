@@ -4,7 +4,6 @@ Semantic processor for analyzing agent actions.
 Generates embeddings, detects patterns, and creates weekly summaries.
 """
 
-from datetime import datetime, timedelta
 from typing import Optional
 
 from forge.db.postgres import PostgresDB
@@ -48,7 +47,7 @@ class SemanticProcessor:
         """
         # Generate embedding
         embedding = await self.embeddings.embed(content)
-        
+
         # Store in postgres if available
         if self.db:
             row_id = await self.db.insert_action(
@@ -79,10 +78,10 @@ class SemanticProcessor:
         """
         if not self.db:
             return []
-        
+
         # Generate query embedding
         query_embedding = await self.embeddings.embed(query)
-        
+
         # Search in postgres
         return await self.db.semantic_search(
             experiment_id=experiment_id,

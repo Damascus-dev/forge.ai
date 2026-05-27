@@ -4,8 +4,8 @@ Semantic insights generator for anomaly detection and pattern extraction.
 Analyzes action embeddings to find anomalies and patterns.
 """
 
-from typing import Optional
 import math
+
 from forge.db.postgres import PostgresDB
 from forge.semantic.embeddings import EmbeddingEngine
 

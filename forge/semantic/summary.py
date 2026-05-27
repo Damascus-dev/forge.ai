@@ -4,13 +4,12 @@ Weekly summary generation from semantic action logs.
 Generates summaries by clustering actions and extracting themes.
 """
 
+import json
 from datetime import datetime, timedelta
 from typing import Optional
-import json
 
 from forge.db.postgres import PostgresDB
 from forge.semantic.embeddings import EmbeddingEngine
-from forge.semantic.processor import SemanticProcessor
 
 
 class SummaryGenerator:
@@ -32,21 +31,21 @@ class SummaryGenerator:
 
     def _get_week_boundaries(self, date: Optional[datetime] = None) -> tuple[str, str]:
         """Get week start and end dates (Monday-Sunday).
-        
+
         Args:
             date: Reference date (defaults to today)
-            
+
         Returns:
             (week_start, week_end) as ISO date strings
         """
         if not date:
             date = datetime.now()
-        
+
         # Monday = 0, Sunday = 6
         days_since_monday = date.weekday()
         week_start = date - timedelta(days=days_since_monday)
         week_end = week_start + timedelta(days=6)
-        
+
         return week_start.date().isoformat(), week_end.date().isoformat()
 
     async def generate_summary(
@@ -75,13 +74,13 @@ class SummaryGenerator:
         # Get actions for this week
         session = await self.db.get_session()
         try:
+
             import sqlalchemy as sa
-            from datetime import date
-            
+
             # Convert ISO strings to date objects for PostgreSQL
             week_start_date = datetime.fromisoformat(week_start).date()
             week_end_date = datetime.fromisoformat(week_end).date()
-            
+
             query = sa.text("""
                 SELECT id, content, action_type, agent_id
                 FROM agent_actions

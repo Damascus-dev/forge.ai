@@ -4,11 +4,12 @@ Background job scheduler for semantic logging tasks.
 Handles automatic summary generation on a schedule.
 """
 
+import asyncio
+import logging
+from typing import Optional
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-import logging
-import asyncio
-from typing import Optional
 
 from forge.db.postgres import PostgresDB
 from forge.semantic.embeddings import EmbeddingEngine
@@ -35,7 +36,7 @@ class SemanticScheduler:
         self.embedding_engine = embedding_engine
         self.scheduler = BackgroundScheduler()
         self.summary_gen = None
-        
+
         if db and embedding_engine:
             self.summary_gen = SummaryGenerator(db, embedding_engine)
 
@@ -64,7 +65,7 @@ class SemanticScheduler:
         if not self.summary_gen:
             logger.warning("Summary generator not initialized, skipping summary generation")
             return
-        
+
         try:
             # Run async code in event loop
             asyncio.run(self._async_generate_summaries())
@@ -77,9 +78,10 @@ class SemanticScheduler:
             # Get all unique experiment IDs with recent actions
             session = await self.db.get_session()
             try:
-                import sqlalchemy as sa
                 from datetime import datetime, timedelta
-                
+
+                import sqlalchemy as sa
+
                 # Get experiments with actions in the past week
                 week_ago = datetime.now() - timedelta(days=7)
                 query = sa.text("""
@@ -95,7 +97,7 @@ class SemanticScheduler:
                 experiment_ids = [row[0] for row in result.fetchall()]
             finally:
                 await session.close()
-            
+
             # Generate summaries for each experiment
             generated_count = 0
             for exp_id in experiment_ids:
@@ -106,7 +108,7 @@ class SemanticScheduler:
                         logger.info(f"Generated summary for experiment: {exp_id}")
                 except Exception as e:
                     logger.error(f"Error generating summary for {exp_id}: {e}")
-            
+
             logger.info(f"Weekly summary generation complete: {generated_count} summaries")
         except Exception as e:
             logger.error(f"Async summary generation error: {e}")

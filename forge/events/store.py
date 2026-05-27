@@ -1,10 +1,13 @@
 import json
+import logging
 from datetime import datetime
 
 import redis.asyncio as redis
 
 from forge.configs.settings import settings
 from forge.experiments.models import ExperimentEvent
+
+logger = logging.getLogger(__name__)
 
 
 def _stream_key(experiment_id: str) -> str:
@@ -105,10 +108,15 @@ class RedisEventStore(EventStore):
             self._redis = None
 
 
-async def create_event_store() -> EventStore:
+async def create_event_store(force_in_memory: bool = False) -> EventStore:
+    if force_in_memory:
+        logger.info("Event store: using InMemoryEventStore (explicit)")
+        return InMemoryEventStore()
     try:
         store = RedisEventStore()
         await store._get_redis()
+        logger.info("Event store: connected to Redis")
         return store
     except Exception:
+        logger.warning("EVENT STORE: Redis unavailable — falling back to InMemoryEventStore. ALL events lost on restart!")
         return InMemoryEventStore()

@@ -4,14 +4,14 @@ Semantic search and analysis API routes.
 Phase 6: Semantic Logging Integration
 """
 
-from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 
+from fastapi import APIRouter, HTTPException, Query
+
 from forge.db.postgres import PostgresDB
-from forge.semantic.embeddings import EmbeddingEngine
+from forge.semantic.insights import InsightsGenerator
 from forge.semantic.processor import SemanticProcessor
 from forge.semantic.summary import SummaryGenerator
-from forge.semantic.insights import InsightsGenerator
 
 router = APIRouter(prefix="/api/v1", tags=["semantic"])
 
@@ -54,7 +54,7 @@ async def semantic_search(
     """
     if not _processor:
         raise HTTPException(status_code=503, detail="Semantic processor not initialized")
-    
+
     try:
         results = await _processor.semantic_search(
             experiment_id=experiment_id,
@@ -89,7 +89,7 @@ async def get_weekly_summaries(
     """
     if not _summary_generator:
         raise HTTPException(status_code=503, detail="Summary generator not initialized")
-    
+
     try:
         summaries, total = await _summary_generator.get_summaries(
             experiment_id=experiment_id,
@@ -118,7 +118,7 @@ async def get_semantic_insights(experiment_id: str):
     """
     if not _insights_generator:
         raise HTTPException(status_code=503, detail="Insights generator not initialized")
-    
+
     try:
         insights = await _insights_generator.get_insights(experiment_id)
         return insights

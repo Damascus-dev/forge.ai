@@ -1,7 +1,6 @@
 from docker.errors import DockerException, NotFound
 
 from docker import from_env
-from docker.types import IPAMConfig, IPAMPool
 from forge.configs.settings import settings
 from forge.experiments.models import Experiment, Node
 

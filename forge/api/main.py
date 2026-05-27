@@ -1,18 +1,23 @@
+import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
+from forge.api.auth import verify_api_key
 from forge.api.routes import agents, events, experiments, nodes, replay, semantic, ws
 from forge.configs.settings import settings
 from forge.db.postgres import PostgresDB
 from forge.experiments.models import HealthCheck, HealthComponent
 from forge.semantic.embeddings import EmbeddingEngine
-from forge.semantic.processor import SemanticProcessor
-from forge.semantic.summary import SummaryGenerator
 from forge.semantic.insights import InsightsGenerator
+from forge.semantic.processor import SemanticProcessor
 from forge.semantic.scheduler import SemanticScheduler
+from forge.semantic.summary import SummaryGenerator
+
+logger = logging.getLogger(__name__)
 
 _semantic_scheduler: SemanticScheduler = None
 
@@ -20,6 +25,14 @@ _semantic_scheduler: SemanticScheduler = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _semantic_scheduler
+
+    if not settings.api_key:
+        logger.warning("SECURITY: No FORGE_API_KEY configured. Set one in .env for production.")
+    if settings.debug:
+        logger.warning("SECURITY: Running in DEBUG mode. CORS allows all origins and auth is disabled.")
+    if not settings.database_url:
+        logger.warning("DATA: No database_url configured. Semantic logging (pgvector) will be unavailable.")
+
     if hasattr(settings, 'database_url') and settings.database_url:
         try:
             _db = PostgresDB(settings.database_url)
@@ -51,7 +64,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -85,5 +98,5 @@ async def health():
 
 
 @app.get("/metrics")
-async def metrics():
+async def metrics(_=Depends(verify_api_key)):
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)

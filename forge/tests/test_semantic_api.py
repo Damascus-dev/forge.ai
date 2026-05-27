@@ -26,7 +26,7 @@ def client():
 def test_semantic_search_missing_query(client):
     """Test semantic-search endpoint with missing query."""
     response = client.get("/api/v1/experiments/exp-1/semantic-search")
-    
+
     # Should fail with 422 Unprocessable Entity (missing required param)
     assert response.status_code == 422
 
@@ -34,7 +34,7 @@ def test_semantic_search_missing_query(client):
 def test_semantic_search_empty_query(client):
     """Test semantic-search endpoint with empty query."""
     response = client.get("/api/v1/experiments/exp-1/semantic-search?query=")
-    
+
     # Should fail with 422 (query min_length=1)
     assert response.status_code == 422
 
@@ -42,7 +42,7 @@ def test_semantic_search_empty_query(client):
 def test_semantic_search_invalid_limit(client):
     """Test semantic-search endpoint with invalid limit."""
     response = client.get("/api/v1/experiments/exp-1/semantic-search?query=test&limit=0")
-    
+
     # Should fail with 422 (limit ge=1)
     assert response.status_code == 422
 
@@ -50,7 +50,7 @@ def test_semantic_search_invalid_limit(client):
 def test_semantic_search_limit_too_high(client):
     """Test semantic-search endpoint with limit exceeding max."""
     response = client.get("/api/v1/experiments/exp-1/semantic-search?query=test&limit=101")
-    
+
     # Should fail with 422 (limit le=100)
     assert response.status_code == 422
 
@@ -63,10 +63,10 @@ def test_semantic_search_valid_params(client):
         "/api/v1/experiments/exp-1/semantic-search",
         params={"query": "test query", "limit": 10}
     )
-    
+
     # Should either return 200 (if processor is initialized) or 503 (if not)
     assert response.status_code in [200, 503]
-    
+
     if response.status_code == 200:
         data = response.json()
         assert "experiment_id" in data
@@ -85,7 +85,7 @@ def test_semantic_search_query_max_length(client):
         "/api/v1/experiments/exp-1/semantic-search",
         params={"query": long_query, "limit": 10}
     )
-    
+
     assert response.status_code == 422
 
 
@@ -95,7 +95,7 @@ def test_semantic_search_special_chars_in_query(client):
         "/api/v1/experiments/exp-1/semantic-search",
         params={"query": "special: !@#$%^&*() unicode: 你好", "limit": 10}
     )
-    
+
     # Should either work or return error
     assert response.status_code in [200, 503, 500]
 
@@ -106,14 +106,14 @@ def test_semantic_search_response_has_required_fields(client):
         "/api/v1/experiments/test-exp/semantic-search",
         params={"query": "test", "limit": 10}
     )
-    
+
     if response.status_code == 200:
         data = response.json()
         assert "experiment_id" in data
         assert "query" in data
         assert "results" in data
         assert "count" in data
-        
+
         # Check result fields if results exist
         for result in data["results"]:
             assert "id" in result
@@ -129,10 +129,10 @@ def test_semantic_search_response_has_required_fields(client):
 def test_weekly_summaries_endpoint(client):
     """Test weekly-summaries endpoint."""
     response = client.get("/api/v1/weekly-summaries")
-    
+
     # Should either return 200 (if generator initialized) or 503 (if not)
     assert response.status_code in [200, 503, 500]
-    
+
     if response.status_code == 200:
         data = response.json()
         assert "limit" in data
@@ -147,10 +147,10 @@ def test_weekly_summaries_with_params(client):
         "/api/v1/weekly-summaries",
         params={"limit": 5, "offset": 10}
     )
-    
+
     # Should either return 200 (if generator initialized) or 503/500 (if not)
     assert response.status_code in [200, 503, 500]
-    
+
     if response.status_code == 200:
         data = response.json()
         assert data["limit"] == 5
@@ -163,7 +163,7 @@ def test_weekly_summaries_invalid_limit(client):
         "/api/v1/weekly-summaries",
         params={"limit": 0}
     )
-    
+
     # Should fail with 422 (limit ge=1)
     assert response.status_code == 422
 
@@ -174,7 +174,7 @@ def test_weekly_summaries_invalid_offset(client):
         "/api/v1/weekly-summaries",
         params={"offset": -1}
     )
-    
+
     # Should fail with 422 (offset ge=0)
     assert response.status_code == 422
 
@@ -182,12 +182,12 @@ def test_weekly_summaries_invalid_offset(client):
 def test_semantic_insights_endpoint(client):
     """Test semantic-insights endpoint."""
     exp_id = "test-insights"
-    
+
     response = client.get(f"/api/v1/experiments/{exp_id}/semantic-insights")
-    
+
     # Should either return 200 (if generator initialized) or 503/500 (if not)
     assert response.status_code in [200, 503, 500]
-    
+
     if response.status_code == 200:
         data = response.json()
         assert data["experiment_id"] == exp_id
@@ -208,14 +208,14 @@ async def test_semantic_search_query_validation(client):
         "/api/v1/experiments/exp-1/semantic-search",
         params={"query": long_query, "limit": 10}
     )
-    
+
     assert response.status_code == 422
 
 
 def test_api_health_check(client):
     """Test API health endpoint."""
     response = client.get("/health")
-    
+
     assert response.status_code == 200
     data = response.json()
     assert "status" in data
@@ -226,6 +226,6 @@ def test_api_routes_registered(client):
     """Test that semantic routes are registered."""
     # Try accessing semantic endpoints
     response = client.get("/api/v1/weekly-summaries")
-    
+
     # Should not get 404 (which would mean route not registered)
     assert response.status_code != 404

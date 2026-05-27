@@ -4,7 +4,6 @@ PostgreSQL database operations for Forge.
 Handles async connections, migrations, and queries.
 """
 
-from datetime import datetime
 from typing import Optional
 
 import sqlalchemy as sa
@@ -67,7 +66,7 @@ class PostgresDB:
         try:
             # Convert embedding list to pgvector string format
             embedding_str = "[" + ",".join(str(x) for x in embedding) + "]"
-            
+
             query = sa.text("""
                 INSERT INTO agent_actions (experiment_id, agent_id, action_type, content, embedding)
                 VALUES (:exp_id, :agent_id, :action_type, :content, CAST(:embedding AS vector))
@@ -100,7 +99,7 @@ class PostgresDB:
         try:
             # Convert embedding list to pgvector string format
             embedding_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
-            
+
             query = sa.text("""
                 SELECT id, experiment_id, agent_id, action_type, content, created_at,
                        1 - (embedding <=> CAST(:query_embedding AS vector)) as similarity
@@ -145,15 +144,15 @@ class PostgresDB:
     ) -> int:
         """Insert weekly summary."""
         from datetime import datetime as dt
-        
+
         session = await self.get_session()
         try:
             # Convert ISO strings to date objects
             week_start_date = dt.fromisoformat(week_start).date()
             week_end_date = dt.fromisoformat(week_end).date()
-            
+
             query = sa.text("""
-                INSERT INTO weekly_summaries 
+                INSERT INTO weekly_summaries
                   (experiment_id, week_start, week_end, summary_text, themes, key_metrics, total_actions)
                 VALUES (:exp_id, :week_start, :week_end, :summary_text, :themes, :metrics, :total)
                 ON CONFLICT (experiment_id, week_start) DO UPDATE
@@ -189,19 +188,19 @@ class PostgresDB:
         try:
             where_clause = ""
             params = {"limit": limit, "offset": offset}
-            
+
             if experiment_id:
                 where_clause = "WHERE experiment_id = :exp_id"
                 params["exp_id"] = experiment_id
-            
+
             # Get total count
             count_query = sa.text(f"SELECT COUNT(*) FROM weekly_summaries {where_clause}")
             count_result = await session.execute(count_query, params)
             total = count_result.scalar()
-            
+
             # Get paginated results
             query = sa.text(f"""
-                SELECT id, experiment_id, week_start, week_end, summary_text, themes, 
+                SELECT id, experiment_id, week_start, week_end, summary_text, themes,
                        key_metrics, total_actions, created_at
                 FROM weekly_summaries
                 {where_clause}
@@ -210,7 +209,7 @@ class PostgresDB:
             """)
             result = await session.execute(query, params)
             rows = result.fetchall()
-            
+
             summaries = [
                 {
                     "id": row[0],

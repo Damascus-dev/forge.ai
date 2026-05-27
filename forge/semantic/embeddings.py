@@ -4,8 +4,8 @@ Embedding engine for semantic logging.
 Generates embeddings via local Ollama instance.
 """
 
+
 import httpx
-from typing import Optional
 
 
 class EmbeddingEngine:

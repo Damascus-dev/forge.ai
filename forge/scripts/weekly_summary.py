@@ -10,9 +10,7 @@ Usage:
 """
 
 import argparse
-import asyncio
 from datetime import datetime, timedelta
-from pathlib import Path
 
 # TODO: Phase 6 Implementation
 #  1. Import SemanticProcessor
@@ -52,21 +50,21 @@ def main():
         default=None,
         help="Week start date (YYYY-MM-DD). Defaults to last Monday.",
     )
-    
+
     args = parser.parse_args()
-    
+
     # Parse week start
     if args.week_start:
-        week_start = datetime.strptime(args.week_start, "%Y-%m-%d")
+        datetime.strptime(args.week_start, "%Y-%m-%d")
     else:
         today = datetime.now()
-        week_start = today - timedelta(days=today.weekday())
-    
+        today - timedelta(days=today.weekday())
+
     # Generate summary
     # summary_path = asyncio.run(generate_weekly_summary(week_start))
     # print(f"✓ Weekly summary saved: {summary_path}")
     # print(f"✓ Stored in postgres: weekly_summaries table")
-    
+
     print("TODO: Weekly summary - Phase 6 not yet implemented")
 
 

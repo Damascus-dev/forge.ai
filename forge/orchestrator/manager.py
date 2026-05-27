@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from forge.agents.loop import AgentRuntime
 from forge.chaos.engine import ChaosEngine
-from forge.events.store import InMemoryEventStore, EventStore, create_event_store
+from forge.events.store import EventStore, InMemoryEventStore, create_event_store
 from forge.experiments.models import (
     AgentConfig,
     AgentLog,
@@ -207,7 +207,6 @@ class Orchestrator:
         if not experiment:
             return {"error": "not found"}
         self.nodes.pop(experiment_id, None)
-        agent_ids = [aid for aid, a in self.agents.items() if a._agent_id in experiment_id or True]
         for aid in list(self.agents.keys()):
             self.agents.pop(aid, None)
         self.metrics.record_experiment_deleted()

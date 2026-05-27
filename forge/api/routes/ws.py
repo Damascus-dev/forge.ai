@@ -1,13 +1,15 @@
+import json
+import logging
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-import json
-import asyncio
+from forge.api.auth import verify_ws_api_key
 
-from forge.configs.settings import settings
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# In-memory connection manager
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, list[WebSocket]] = {}
@@ -37,11 +39,15 @@ class ConnectionManager:
         for ws in dead:
             self.disconnect(experiment_id, ws)
 
+
 manager = ConnectionManager()
 
 
 @router.websocket("/api/v1/experiments/{experiment_id}/ws")
 async def experiment_websocket(experiment_id: str, websocket: WebSocket):
+    authorized = await verify_ws_api_key(websocket)
+    if not authorized:
+        return
     await manager.connect(experiment_id, websocket)
     try:
         while True:
