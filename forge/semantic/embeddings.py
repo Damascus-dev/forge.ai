@@ -1,11 +1,14 @@
 """
 Embedding engine for semantic logging.
 
-Generates embeddings via local Ollama instance.
+Generates embeddings via local Ollama instance with graceful fallback.
 """
 
+import logging
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingEngine:
@@ -16,28 +19,34 @@ class EmbeddingEngine:
         model: str = "nomic-embed-text:latest",
         ollama_url: str = "http://localhost:11434",
     ):
-        """Initialize embedding engine.
-
-        Args:
-            model: Ollama model name
-            ollama_url: Base URL for Ollama API
-        """
         self.model = model
         self.ollama_url = ollama_url
         self.client = httpx.AsyncClient(timeout=30.0)
+        self._available = False
 
-    async def embed(self, text: str) -> list[float]:
-        """Generate embedding for single text.
-
-        Args:
-            text: Text to embed
+    async def health_check(self) -> bool:
+        """Check if Ollama is reachable.
 
         Returns:
-            768-dimensional embedding vector
-
-        Raises:
-            httpx.HTTPError: If Ollama API fails
+            True if Ollama responds, False otherwise.
         """
+        try:
+            response = await self.client.get(f"{self.ollama_url}/api/tags", timeout=5.0)
+            self._available = response.status_code == 200
+            return self._available
+        except Exception:
+            self._available = False
+            return False
+
+    @property
+    def available(self) -> bool:
+        return self._available
+
+    async def embed(self, text: str) -> list[float]:
+        if not self._available:
+            ok = await self.health_check()
+            if not ok:
+                raise RuntimeError("Ollama embedding service is not available")
         try:
             response = await self.client.post(
                 f"{self.ollama_url}/api/embeddings",
@@ -46,20 +55,10 @@ class EmbeddingEngine:
             response.raise_for_status()
             return response.json()["embedding"]
         except httpx.HTTPError as e:
+            self._available = False
             raise RuntimeError(f"Failed to generate embedding: {e}") from e
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
-        """Generate embeddings for multiple texts (async).
-
-        Args:
-            texts: List of texts to embed
-
-        Returns:
-            List of embedding vectors
-
-        Note:
-            Processes sequentially to avoid overwhelming Ollama.
-        """
         embeddings = []
         for text in texts:
             embedding = await self.embed(text)
@@ -67,5 +66,4 @@ class EmbeddingEngine:
         return embeddings
 
     async def close(self):
-        """Close HTTP client."""
         await self.client.aclose()

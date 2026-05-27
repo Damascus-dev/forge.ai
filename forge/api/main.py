@@ -37,14 +37,20 @@ async def lifespan(app: FastAPI):
         try:
             _db = PostgresDB(settings.database_url)
             _engine = EmbeddingEngine()
+            ollama_ok = await _engine.health_check()
+            if ollama_ok:
+                logger.info("Ollama embedding service: connected")
+            else:
+                logger.warning("Ollama embedding service: unreachable — semantic search disabled")
             _processor = SemanticProcessor(_engine, _db)
             _summary_gen = SummaryGenerator(_db, _engine)
             _insights_gen = InsightsGenerator(_db, _engine)
             semantic.init_semantic(_db, _processor, _summary_gen, _insights_gen)
-            _semantic_scheduler = SemanticScheduler(_db, _engine)
-            _semantic_scheduler.start()
-        except Exception:
-            pass
+            if ollama_ok:
+                _semantic_scheduler = SemanticScheduler(_db, _engine)
+                _semantic_scheduler.start()
+        except Exception as e:
+            logger.warning("Semantic logging initialization failed: %s", e)
     yield
     if _semantic_scheduler:
         _semantic_scheduler.stop()
@@ -79,6 +85,9 @@ app.include_router(semantic.router, tags=["semantic"])
 app.include_router(ws.router)
 
 
+_ollama_available: bool = False
+
+
 @app.get(
     "/health",
     response_model=HealthCheck,
@@ -86,6 +95,7 @@ app.include_router(ws.router)
     description="Returns the health status of all system components.",
 )
 async def health():
+    global _ollama_available
     components = [
         HealthComponent(name="api", status="healthy", details={"version": settings.version}),
     ]
@@ -93,6 +103,21 @@ async def health():
         components.append(HealthComponent(name="semantic_processor", status="healthy"))
     else:
         components.append(HealthComponent(name="semantic_processor", status="disabled"))
+
+    import forge.api.routes.semantic as semantic_routes
+    if semantic_routes._processor:
+        from forge.semantic.embeddings import EmbeddingEngine
+        engine = getattr(semantic_routes._processor, 'embeddings', None)
+        if isinstance(engine, EmbeddingEngine):
+            _ollama_available = engine.available
+            components.append(HealthComponent(
+                name="ollama",
+                status="healthy" if _ollama_available else "degraded",
+                details={"model": engine.model},
+            ))
+    else:
+        components.append(HealthComponent(name="ollama", status="disabled"))
+
     overall = "healthy" if all(c.status == "healthy" or c.status == "disabled" for c in components) else "degraded"
     return HealthCheck(status=overall, version=settings.version, components=components)
 
