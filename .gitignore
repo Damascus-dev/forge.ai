@@ -4,9 +4,9 @@ __pycache__/
 .env
 *.db
 logs/
-!forge/logs/session-summary.md
-!forge/logs/sessions.jsonl
 storage/
+devsec/
+node_modules/
 node_modules/
 .next/
 dist/
