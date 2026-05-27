@@ -40,6 +40,38 @@ npm run dev
 
 Open http://localhost:3000
 
+### Configuration (`.env`)
+
+```bash
+# Security (recommended for any network-facing deployment)
+FORGE_API_KEY=your-strong-random-key
+
+# Debug mode — enables CORS wildcard and disables auth
+FORGE_DEBUG=true
+
+# Persistent event storage (Redis)
+FORGE_REDIS_URL=redis://localhost:6379/0
+
+# Semantic search (PostgreSQL + pgvector)
+FORGE_DATABASE_URL=postgresql+asyncpg://forge:forge_password@localhost:5432/forge
+
+# CORS — comma-separated origins (default: * in debug, localhost in production)
+# FORGE_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
+```
+
+### Authentication
+
+Set `FORGE_API_KEY` to enable API key auth:
+- HTTP: pass `X-API-Key` header
+- WebSocket: pass `?api_key=` query parameter
+- Frontend: click the 🔓 icon in the header to enter the key (stored in localStorage)
+
+### Embeddings
+
+Semantic search requires **Ollama** (`nomic-embed-text`) for high-quality vector embeddings.
+When Ollama is unavailable, the system falls back to a built-in bag-of-words model
+so search remains functional.
+
 ## API Endpoints
 
 | Method | Path | Description |

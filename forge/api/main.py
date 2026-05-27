@@ -7,6 +7,7 @@ from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from forge.api.auth import verify_api_key
+from forge.api.ratelimit import RateLimitMiddleware
 from forge.api.routes import agents, events, experiments, nodes, replay, semantic, ws
 from forge.configs.settings import settings
 from forge.db.postgres import PostgresDB
@@ -41,7 +42,7 @@ async def lifespan(app: FastAPI):
             if ollama_ok:
                 logger.info("Ollama embedding service: connected")
             else:
-                logger.warning("Ollama embedding service: unreachable — semantic search disabled")
+                logger.info("Ollama embedding service: unavailable — using bag-of-words fallback")
             _processor = SemanticProcessor(_engine, _db)
             _summary_gen = SummaryGenerator(_db, _engine)
             _insights_gen = InsightsGenerator(_db, _engine)
@@ -75,6 +76,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RateLimitMiddleware)
 
 app.include_router(experiments.router, prefix="/api/v1/experiments", tags=["experiments"])
 app.include_router(nodes.router, prefix="/api/v1/nodes", tags=["nodes"])
@@ -106,14 +108,17 @@ async def health():
 
     import forge.api.routes.semantic as semantic_routes
     if semantic_routes._processor:
-        from forge.semantic.embeddings import EmbeddingEngine
         engine = getattr(semantic_routes._processor, 'embeddings', None)
         if isinstance(engine, EmbeddingEngine):
             _ollama_available = engine.available
+            status = "healthy" if engine.available else "degraded" if engine.using_fallback else "disabled"
+            details = {"model": engine.model}
+            if engine.using_fallback:
+                details["fallback"] = "bag-of-words"
             components.append(HealthComponent(
                 name="ollama",
-                status="healthy" if _ollama_available else "degraded",
-                details={"model": engine.model},
+                status=status,
+                details=details,
             ))
     else:
         components.append(HealthComponent(name="ollama", status="disabled"))
